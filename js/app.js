@@ -22,7 +22,7 @@ import { marketView, bindMarketEvents } from './views/market.js';
 import { performanceView, bindPerformanceEvents } from './views/performance.js';
 import { contractsView, bindContractsEvents } from './views/contracts.js';
 import { coachesView, bindCoachesEvents } from './views/coaches.js';
-import { requestsView, bindRequestsEvents, processAutoRequests, syncPortalTransfers } from './views/requests.js'; // <-- SYNC IMPORTADO
+import { requestsView, bindRequestsEvents, processAutoRequests, syncPortalTransfers } from './views/requests.js'; // 🔥 IMPORTADO syncPortalTransfers
 import { warningsView, bindWarningsEvents } from './views/warnings.js';
 import { destroyAllCarousels } from './views/widgetCarousel.js';
 import { accountsView, bindAccountsEvents } from './views/accounts.js';
@@ -211,15 +211,12 @@ async function boot(){
     }
 
     // ============================================================
-    // RADAR AUTOMÁTICO: Cada 10 segundos busca ofertas aceptadas
+    // RADAR AUTOMÁTICO: Cada 10 segundos busca ofertas aceptadas y procesa
     // ============================================================
     setInterval(() => {
       if (isAuthenticated()) {
-        // 1. Procesa ofertas normales (Gestor)
-        processAutoRequests().catch(e => console.error("Error en Radar Automático:", e));
-        
-        // 2. Procesa movimientos hechos desde el Portal para registrarlos
-        syncPortalTransfers().catch(e => console.error("Error en Sync Portal:", e));
+        processAutoRequests().catch(e => console.error("Error en Radar Automático (processAutoRequests):", e));
+        syncPortalTransfers().catch(e => console.error("Error en Radar Automático (syncPortalTransfers):", e));
       }
     }, 10000);
     // ============================================================
