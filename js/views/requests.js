@@ -76,6 +76,39 @@ export async function processAutoRequests() {
             renewalOptionEnabled: false, renewalPrice: 0, sellOnClauses: [], autoReturnOnElimination: true
           });
         }
+        else if (req.type === 'contract_sign') {
+          // 🔥 FIX: Creamos el contrato manualmente para evitar el aborto por validación de "ya está en el equipo"
+          mutate(d => {
+            const p = d.players.find(x => x.id === payload.playerId);
+            const target = d.teams.find(t => t.id === req.from_team_id);
+            if (p && target) {
+              const contractId = 'cnt_' + Date.now();
+              d.contracts.push({
+                id: contractId,
+                type: 'permanent',
+                status: 'active',
+                playerId: p.id,
+                ownerTeamId: target.id,
+                teamId: target.id,
+                startSeasonId: d.seasons.find(s=>s.active)?.id,
+                endSeasonId: d.seasons.find(s=>s.active)?.id,
+                durationSeasons: payload.durationSeasons || 1,
+                durationMatchdays: payload.durationMatchdays || 0,
+                endMatchday: 0,
+                transferPrice: 0,
+                clauses: {
+                  perMatchday: { enabled: false, amount: 0, chargeEvenIfNotPlayed: false },
+                  performance: { enabled: payload.performanceEnabled, targets: payload.performanceTargets || {}, onFail: 'free_agent' },
+                  renewalOption: { enabled: payload.renewalOptionEnabled, price: payload.renewalPrice || 0 },
+                  sellOnClauses: []
+                },
+                stats: { matchdaysCharged: 0, totalCharged: 0, gamesPlayed: 0, goals: 0, assists: 0, saves: 0, shots: 0, efficiency: 0 },
+                createdAt: Date.now()
+              });
+              p.contractId = contractId;
+            }
+          });
+        }
         
         await sb.from('coach_requests').update({ 
           status: 'approved_by_admin', 
@@ -260,6 +293,9 @@ async function updateRequestStatus(reqId, status, note) {
   }
 }
 
+// ============================================================
+// PUENTE DE REGISTRO: Escucha las ofertas que el Portal completó
+// ============================================================
 export async function syncPortalTransfers() {
   const sb = getSupabase();
   
