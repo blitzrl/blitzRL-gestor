@@ -19,7 +19,7 @@ import { applyTheme, DEFAULT_THEME, exportTheme, importTheme, themePreviewBg } f
 import { exportLedgerTXT, applySanction } from '../services/economy.js';
 import { generatePlayers, simulateMatchdays } from '../services/simulator.js';
 import { aggregatePlayerStats } from '../services/statistics.js';
-import { renderNewsroomTab, bindNewsroomEvents } from './newsroom.js'; // NUEVO
+import { renderNewsroomTab, bindNewsroomEvents } from './newsroom.js';
 
 let configTab = 'general';
 let _authUser = null;
@@ -2241,7 +2241,7 @@ export function bindConfigEvents(){
   if (configTab === 'trophies') bindTrophiesConfig();
   if (configTab === 'theme') bindThemeTab();
   if (configTab === 'economy') bindEconomyTab();
-  if (configTab === 'newsroom') bindNewsroomEvents(); // NUEVO
+  if (configTab === 'newsroom') bindNewsroomEvents();
 
   document.getElementById('aiToggleKey')?.addEventListener('click', () => {
     const el = document.getElementById('aiKey');
@@ -2318,17 +2318,31 @@ export function bindConfigEvents(){
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     } catch(err) { toast('Error: '+err.message,'error'); }
   });
-  document.getElementById('btnReset')?.addEventListener('click', () => {
-    if (!confirm('¿Restaurar base de datos por defecto?')) return;
-    resetDB();
+
+  document.getElementById('btnReset')?.addEventListener('click', async () => {
+    if (!confirm('¿Restaurar base de datos por defecto? ESTO BORRARÁ LOS DATOS LOCALES Y DEL SERVIDOR.')) return;
+    
     try {
-      const themeActive = getDB().config?.theme?.active;
-      applyTheme(themeActive);
-    } catch(themeErr) {
-      console.warn('[CONFIG] No se pudo aplicar tema tras reset:', themeErr);
+      // 1. Limpieza local
+      resetDB();
+      
+      // 2. Forzar Push a Supabase para vaciar las tablas en la nube
+      toast('Restaurando base de datos en el servidor...', 'info');
+      await forcePush();
+
+      try {
+        const themeActive = getDB().config?.theme?.active;
+        applyTheme(themeActive);
+      } catch(themeErr) {
+        console.warn('[CONFIG] No se pudo aplicar tema tras reset:', themeErr);
+      }
+      
+      toast('Base de datos restaurada y publicada', 'success');
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+    } catch (e) {
+      toast('Error al restaurar: ' + e.message, 'error');
     }
-    toast('Base restaurada','success');
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
 
   // --- IA TOURNAMENT WIZARD ---
