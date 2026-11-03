@@ -52,6 +52,8 @@ function normalizePlayer(p){
   if(p.rlTracker === undefined)        p.rlTracker = '';
   if(p.profilePicture === undefined)   p.profilePicture = '';
   if(p.nationalityCode === undefined)  p.nationalityCode = '';
+  if(p.discordId === undefined)        p.discordId = '';
+  if(!Array.isArray(p.socials))        p.socials = [];
   if(!Array.isArray(p.history))        p.history = [];
   if(!Array.isArray(p.pigHistory))     p.pigHistory = [];
   if(!Array.isArray(p.sanctions))      p.sanctions = [];
@@ -466,7 +468,6 @@ export function importJSON(file){
 export function resetDB(){
   if(!_db) loadDB();
   
-  // 🔥 Capturamos hashes VIEJOS (con datos) antes de borrar
   const oldHashes = window.__zenithCaptureHashes ? window.__zenithCaptureHashes() : null;
 
   _db = defaultDatabase();
@@ -474,7 +475,6 @@ export function resetDB(){
   _viewCacheForId = null;
   persist();
 
-  // 🔥 Notificamos el cambio para que sync.js detecte que todo se vació y lo empuje a Supabase
   if (oldHashes && window.__zenithNotifyChange) {
     try {
       const newHashes = window.__zenithCaptureHashes ? window.__zenithCaptureHashes() : null;
