@@ -9,7 +9,6 @@ import { showCoachProfile } from './coaches.js';
 
 let _searchQuery = '';
 
-// FUNCIÓN MÁGICA PARA ORDENAR EL ROSTER
 function sortRoster(roster) {
   const roleOrder = { 'CAPITÁN': 1, 'TITULAR': 2, 'SUPLENTE': 3, 'AUXILIAR': 4 };
   return [...roster].sort((a, b) => (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99));
@@ -74,10 +73,10 @@ function teamCardMini(t){
   const db = getDB();
   const searchable = `${t.name} ${t.coach} ${(t.roster||[]).map(r => db.players.find(x=>x.id===r.playerId)?.name || '').join(' ')}`.toLowerCase();
 
-  const coachObj = db.coaches?.find(c => c.teamId === t.id && c.roleType === 'coach');
-  const assistantObj = db.coaches?.find(c => c.teamId === t.id && c.roleType === 'assistant');
+  // 🔥 BÚSQUEDA CON teamIds
+  const coachObj = db.coaches?.find(c => c.roleType === 'coach' && (c.teamIds || []).includes(t.id));
+  const assistantObj = db.coaches?.find(c => c.roleType === 'assistant' && (c.teamIds || []).includes(t.id));
 
-  // APLICAMOS EL ORDENAMIENTO AQUÍ
   const sortedRoster = sortRoster(t.roster || []);
 
   return `
@@ -134,10 +133,9 @@ function teamProfileView(team){
   const phase = computeTeamPhase(team.id);
   const trophies = team.trophies || [];
 
-  const coachObj = db.coaches?.find(c => c.teamId === team.id && c.roleType === 'coach');
-  const assistantObj = db.coaches?.find(c => c.teamId === team.id && c.roleType === 'assistant');
+  const coachObj = db.coaches?.find(c => c.roleType === 'coach' && (c.teamIds || []).includes(team.id));
+  const assistantObj = db.coaches?.find(c => c.roleType === 'assistant' && (c.teamIds || []).includes(team.id));
 
-  // APLICAMOS EL ORDENAMIENTO AQUÍ TAMBIÉN
   const sortedRoster = sortRoster(team.roster || []);
 
   return `
