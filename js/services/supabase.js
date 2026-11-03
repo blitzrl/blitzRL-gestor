@@ -83,6 +83,8 @@ export async function downloadAll() {
       rankDivision: r.data?.rankDivision || 'II',
       rlTracker: r.data?.rlTracker || '',
       profilePicture: r.data?.profilePicture || '',
+      discordId: r.data?.discordId || '',
+      socials: r.data?.socials || [],
       history: r.data?.history || [],
       sanctions: r.data?.sanctions || [],
       pigHistory: r.data?.pigHistory || [],
@@ -228,6 +230,8 @@ export async function pushTables(tables) {
             rankDivision: p.rankDivision || 'II',
             rlTracker: p.rlTracker || '',
             profilePicture: p.profilePicture || '',
+            discordId: p.discordId || '',
+            socials: p.socials || [],
             history: p.history || [],
             sanctions: p.sanctions || [],
             pigHistory: p.pigHistory || [],
@@ -357,19 +361,16 @@ export async function pushTables(tables) {
 }
 
 async function replaceTable(sb, tableName, rows, mapFn) {
-  // 1. Si hay filas nuevas, las inserta o actualiza
   if (rows.length > 0) {
     const mapped = rows.map(mapFn);
     const { error: insErr } = await sb.from(tableName).upsert(mapped, { onConflict: 'id' });
     if (insErr) throw new Error(`upsert: ${insErr.message}`);
   }
   
-  // 2. Obtiene los IDs existentes en Supabase para borrar huérfanos (o vaciar todo si rows está vacío)
   const { data: existing, error: getErr } = await sb.from(tableName).select('id');
   if (getErr) throw new Error(`get existing: ${getErr.message}`);
   
   if (existing && existing.length > 0) {
-    // Si rows está vacío, newIds estará vacío, por lo que toDelete tendrá TODOS los IDs, vaciando la tabla.
     const newIds = new Set(rows.map(mapFn).map(m => m.id));
     const toDelete = existing.map(e => e.id).filter(id => !newIds.has(id));
     
