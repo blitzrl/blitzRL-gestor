@@ -464,10 +464,25 @@ export function importJSON(file){
 }
 
 export function resetDB(){
+  if(!_db) loadDB();
+  
+  // 🔥 Capturamos hashes VIEJOS (con datos) antes de borrar
+  const oldHashes = window.__zenithCaptureHashes ? window.__zenithCaptureHashes() : null;
+
   _db = defaultDatabase();
   _viewCache = null;
   _viewCacheForId = null;
   persist();
+
+  // 🔥 Notificamos el cambio para que sync.js detecte que todo se vació y lo empuje a Supabase
+  if (oldHashes && window.__zenithNotifyChange) {
+    try {
+      const newHashes = window.__zenithCaptureHashes ? window.__zenithCaptureHashes() : null;
+      if (newHashes) window.__zenithNotifyChange(oldHashes, newHashes);
+    } catch (e) {
+      console.warn('[ZENITH] No se pudo notificar cambio tras reset:', e);
+    }
+  }
 }
 
 window.__zenithGetRawDB = getRawDB;
