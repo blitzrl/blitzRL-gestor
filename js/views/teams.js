@@ -8,7 +8,7 @@ import { openRowActions, openTransferModal } from '../services/transfers.js';
 import { renderVitrina } from '../services/trophies.js';
 import { recordTransaction, getTeamSquadValue } from '../services/economy.js';
 import { openLoanModal } from './loanModal.js'; 
-import { showCoachProfile } from './coaches.js'; // <-- AÑADIDO
+import { showCoachProfile } from './coaches.js';
 
 let _searchQuery = '';
 
@@ -75,7 +75,6 @@ function teamCard(t){
 
   const searchable = `${t.name} ${t.coach} ${roster.map(r => r.player?.name || '').join(' ')}`.toLowerCase();
 
-  // Buscar IDs de coach si están registrados en la tabla de coaches
   const coachObj = db.coaches?.find(c => c.teamId === t.id && c.roleType === 'coach');
   const assistantObj = db.coaches?.find(c => c.teamId === t.id && c.roleType === 'assistant');
 
@@ -154,7 +153,6 @@ export function bindTeamsEvents(){
     });
   });
 
-  // Listener para perfiles de coach
   document.querySelectorAll('[data-show-coach]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -197,7 +195,7 @@ export function openTeamForm(teamId=null){
     logo: team?.logo || '',
     name: team?.name || '',
     coach: team?.coach || '',
-    assistant: team?.assistant || '', // <-- AÑADIDO
+    assistant: team?.assistant || '',
     money: team?.money || 0,
     roster: team ? JSON.parse(JSON.stringify(team.roster)) : []
   };
@@ -387,6 +385,9 @@ export function openPlayerForm(playerId=null, onSaved=null){
     </div>
   ` : '';
 
+  // Manejo temporal de redes sociales para la UI
+  let currentSocials = player?.socials ? JSON.parse(JSON.stringify(player.socials)) : [];
+
   openModal({
     id: 'player-form-' + (playerId || 'new'),
     title: player ? 'EDITAR JUGADOR' : 'NUEVO JUGADOR',
@@ -416,10 +417,25 @@ export function openPlayerForm(playerId=null, onSaved=null){
             <div class="field" id="levelWrap"><label>Nivel</label><select class="select" id="pfLevel">${optsLevel}</select></div>
             <div class="field" id="divWrap"><label>División</label><select class="select" id="pfDiv">${optsDiv}</select></div>
           </div>
-          <div class="field">
-            <label>RL Tracker (URL del perfil)</label>
-            <input class="input" id="pfTracker" type="url" placeholder="https://rocketleague.tracker.network/rocket-league/profile/..." value="${player?.rlTracker||''}">
+          <div class="row">
+            <div class="field">
+              <label>RL Tracker (URL del perfil)</label>
+              <input class="input" id="pfTracker" type="url" placeholder="https://rocketleague.tracker.network/..." value="${player?.rlTracker||''}">
+            </div>
+            <div class="field">
+              <label>ID de Discord</label>
+              <input class="input" id="pfDiscordId" placeholder="Ej: usuario#1234 o ID numérico" value="${player?.discordId||''}">
+            </div>
           </div>
+          
+          <div class="divider" style="margin: 10px 0;"></div>
+          
+          <div class="section-minihead">
+            <span>REDES SOCIALES</span>
+            <button type="button" class="btn btn-sm btn-primary" id="btnAddSocial">+ AÑADIR RED</button>
+          </div>
+          <div id="playerSocialsContainer" class="roster-edit-list" style="margin-bottom:14px;"></div>
+
         </div>
       </div>
     `,
@@ -457,6 +473,53 @@ export function openPlayerForm(playerId=null, onSaved=null){
       rankSel.addEventListener('change', refresh);
       refresh();
 
+      // Lógica de Redes Sociales Dinámicas
+      const socialsContainer = root.querySelector('#playerSocialsContainer');
+      
+      const renderSocials = () => {
+        if (currentSocials.length === 0) {
+          socialsContainer.innerHTML = `<div style="font-size:11px;color:var(--muted);text-align:center;padding:10px;">No hay redes sociales agregadas.</div>`;
+          return;
+        }
+        
+        socialsContainer.innerHTML = currentSocials.map((s, i) => `
+          <div class="roster-edit-row" style="grid-template-columns: 130px 1fr auto;">
+            <select class="select" data-social-platform="${i}">
+              <option value="discord" ${s.platform === 'discord' ? 'selected' : ''}>Discord</option>
+              <option value="twitter" ${s.platform === 'twitter' ? 'selected' : ''}>Twitter / X</option>
+              <option value="twitch" ${s.platform === 'twitch' ? 'selected' : ''}>Twitch</option>
+              <option value="youtube" ${s.platform === 'youtube' ? 'selected' : ''}>YouTube</option>
+              <option value="instagram" ${s.platform === 'instagram' ? 'selected' : ''}>Instagram</option>
+              <option value="tiktok" ${s.platform === 'tiktok' ? 'selected' : ''}>TikTok</option>
+              <option value="other" ${s.platform === 'other' ? 'selected' : ''}>Otro</option>
+            </select>
+            <input class="input" type="url" placeholder="https://..." value="${s.url || ''}" data-social-url="${i}">
+            <button class="btn btn-sm btn-danger" data-del-social="${i}" type="button">✕</button>
+          </div>
+        `).join('');
+
+        // Bindings internos de la lista
+        socialsContainer.querySelectorAll('[data-social-platform]').forEach(sel => {
+          sel.addEventListener('change', (e) => { currentSocials[+sel.dataset.socialPlatform].platform = e.target.value; });
+        });
+        socialsContainer.querySelectorAll('[data-social-url]').forEach(inp => {
+          inp.addEventListener('input', (e) => { currentSocials[+inp.dataset.socialUrl].url = e.target.value; });
+        });
+        socialsContainer.querySelectorAll('[data-del-social]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            currentSocials.splice(+btn.dataset.delSocial, 1);
+            renderSocials();
+          });
+        });
+      };
+
+      root.querySelector('#btnAddSocial').addEventListener('click', () => {
+        currentSocials.push({ platform: 'discord', url: '' });
+        renderSocials();
+      });
+
+      renderSocials(); // Renderizado inicial
+
       if(player){
         const importLazy = async () => await import('../services/transfers.js');
         
@@ -490,6 +553,10 @@ export function openPlayerForm(playerId=null, onSaved=null){
           if(!name) return toast('El nombre es obligatorio','error');
           const rank = root.querySelector('#pfRank').value;
           const isSSL = rank === 'SSL';
+          
+          // Filtrar redes vacías
+          const cleanSocials = currentSocials.filter(s => s.url.trim() !== '');
+
           const payload = {
             name,
             platform: root.querySelector('#pfPlatform').value,
@@ -498,6 +565,8 @@ export function openPlayerForm(playerId=null, onSaved=null){
             rankLevel: isSSL ? null : +root.querySelector('#pfLevel').value,
             rankDivision: isSSL ? null : root.querySelector('#pfDiv').value,
             rlTracker: root.querySelector('#pfTracker').value.trim(),
+            discordId: root.querySelector('#pfDiscordId').value.trim(),
+            socials: cleanSocials,
             profilePicture: photoData
           };
 
