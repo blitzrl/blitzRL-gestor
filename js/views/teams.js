@@ -75,8 +75,9 @@ function teamCard(t){
 
   const searchable = `${t.name} ${t.coach} ${roster.map(r => r.player?.name || '').join(' ')}`.toLowerCase();
 
-  const coachObj = db.coaches?.find(c => c.teamId === t.id && c.roleType === 'coach');
-  const assistantObj = db.coaches?.find(c => c.teamId === t.id && c.roleType === 'assistant');
+  // 🔥 BUSCAR COACH Y AUXILIAR MEDIANTE teamIds
+  const coachObj = db.coaches?.find(c => c.roleType === 'coach' && (c.teamIds || []).includes(t.id));
+  const assistantObj = db.coaches?.find(c => c.roleType === 'assistant' && (c.teamIds || []).includes(t.id));
 
   return `
     <div class="card" data-searchable="${searchable}">
@@ -385,7 +386,6 @@ export function openPlayerForm(playerId=null, onSaved=null){
     </div>
   ` : '';
 
-  // Manejo temporal de redes sociales para la UI
   let currentSocials = player?.socials ? JSON.parse(JSON.stringify(player.socials)) : [];
 
   openModal({
@@ -473,7 +473,6 @@ export function openPlayerForm(playerId=null, onSaved=null){
       rankSel.addEventListener('change', refresh);
       refresh();
 
-      // Lógica de Redes Sociales Dinámicas
       const socialsContainer = root.querySelector('#playerSocialsContainer');
       
       const renderSocials = () => {
@@ -498,7 +497,6 @@ export function openPlayerForm(playerId=null, onSaved=null){
           </div>
         `).join('');
 
-        // Bindings internos de la lista
         socialsContainer.querySelectorAll('[data-social-platform]').forEach(sel => {
           sel.addEventListener('change', (e) => { currentSocials[+sel.dataset.socialPlatform].platform = e.target.value; });
         });
@@ -518,7 +516,7 @@ export function openPlayerForm(playerId=null, onSaved=null){
         renderSocials();
       });
 
-      renderSocials(); // Renderizado inicial
+      renderSocials();
 
       if(player){
         const importLazy = async () => await import('../services/transfers.js');
@@ -554,7 +552,6 @@ export function openPlayerForm(playerId=null, onSaved=null){
           const rank = root.querySelector('#pfRank').value;
           const isSSL = rank === 'SSL';
           
-          // Filtrar redes vacías
           const cleanSocials = currentSocials.filter(s => s.url.trim() !== '');
 
           const payload = {
@@ -563,7 +560,7 @@ export function openPlayerForm(playerId=null, onSaved=null){
             nationalityCode: root.querySelector('#pfNation').value,
             rank,
             rankLevel: isSSL ? null : +root.querySelector('#pfLevel').value,
-            rankDivision: isSSL ? null : root.querySelector('#pfDiv').value,
+            rankDivision: isSSL ? null : +root.querySelector('#pfDiv').value,
             rlTracker: root.querySelector('#pfTracker').value.trim(),
             discordId: root.querySelector('#pfDiscordId').value.trim(),
             socials: cleanSocials,
