@@ -4,7 +4,6 @@ import { toast, openModal, closeTopModal } from '../services/ui.js';
 import { compressImage } from './teams.js';
 import { getNationFlag, NATIONS } from '../data/nations.js';
 
-// Helper local para escapar solo donde es necesario (orgName)
 function _esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -29,8 +28,13 @@ function coachCard(c, db) {
   const teamNames = (c.teamIds || []).map(id => db.teams.find(t => t.id === id)?.name).filter(Boolean).join(', ');
   const isPlayer = c.playerId;
   const flag = c.nationalityCode ? getNationFlag(c.nationalityCode) : '';
-  const hasGroup = c.orgName && (c.teamIds || []).length > 1;
   
+  // 🔥 MEJORA: Badge dorado más prominente, igual al del modal
+  const hasGroup = c.orgName && (c.teamIds || []).length > 1;
+  const orgBadge = hasGroup 
+    ? `<div style="margin-top:8px;"><span class="chip chip-gold" style="font-size:10px; font-weight:600;">👥 ${_esc(c.orgName)}</span></div>` 
+    : '';
+
   return `
     <div class="card">
       <div style="display:flex; gap:14px; align-items:center; margin-bottom:14px">
@@ -40,8 +44,12 @@ function coachCard(c, db) {
         <div style="min-width:0; flex:1;">
           <div style="font-size:16px; font-weight:600; color:var(--silver-light)">${c.name} ${flag}</div>
           <div style="font-size:12px; color:var(--muted); margin-top:2px">${c.roleType === 'coach' ? 'Head Coach' : 'Asistente'}</div>
-          ${teamNames ? `<div class="chip chip-accent" style="margin-top:6px;font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">${teamNames}</div>` : `<div class="chip" style="margin-top:6px;font-size:10px;color:var(--gold)">AGENTE LIBRE</div>`}
-          ${hasGroup ? `<div class="chip chip-gold" style="margin-top:6px;font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">👥 ${_esc(c.orgName)}</div>` : ''}
+          
+          ${orgBadge}
+
+          ${teamNames 
+            ? `<div class="chip chip-accent" style="margin-top:8px;font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">${teamNames}</div>` 
+            : `<div class="chip" style="margin-top:8px;font-size:10px;color:var(--gold)">AGENTE LIBRE</div>`}
         </div>
       </div>
       <div class="divider"></div>
@@ -185,7 +193,6 @@ function openCoachForm(coachId = null) {
         } catch (e) { toast('Error con la foto', 'error'); }
       });
 
-      // 🔥 FASE D: Toggle dinámico del campo "Nombre del Grupo"
       const orgNameWrap = root.querySelector('#cOrgNameWrap');
       const orgNameInput = root.querySelector('#cOrgName');
 
@@ -202,7 +209,6 @@ function openCoachForm(coachId = null) {
       root.querySelectorAll('.chk-coach-team').forEach(cb => {
         cb.addEventListener('change', updateOrgNameVisibility);
       });
-      // Ejecutar al abrir (por si el coach ya tenía equipo seleccionado)
       updateOrgNameVisibility();
 
       root.querySelector('#cPlayer').addEventListener('change', (e) => {
@@ -226,7 +232,6 @@ function openCoachForm(coachId = null) {
         if (!name) return toast('El nombre es obligatorio', 'error');
 
         const selectedTeams = Array.from(root.querySelectorAll('.chk-coach-team:checked')).map(cb => cb.value);
-        // 🔥 FASE D: Solo guardar orgName si tiene 2+ equipos (evita basura)
         const orgName = selectedTeams.length >= 2 ? (orgNameInput.value.trim() || '') : '';
 
         const payload = {
@@ -234,7 +239,7 @@ function openCoachForm(coachId = null) {
           name,
           roleType: root.querySelector('#cRole').value,
           teamIds: selectedTeams,
-          orgName, // 🔥 NUEVO
+          orgName,
           playerId: root.querySelector('#cPlayer').value || null,
           nationalityCode: root.querySelector('#cNation').value,
           rlTracker: root.querySelector('#cTracker').value,
@@ -259,7 +264,6 @@ function openCoachForm(coachId = null) {
             d.coaches.push(payload);
           }
 
-          // 🔥 Sincronizar nombres en los equipos
           d.teams.forEach(t => {
             if (selectedTeams.includes(t.id)) {
               if (payload.roleType === 'coach') t.coach = payload.name;
