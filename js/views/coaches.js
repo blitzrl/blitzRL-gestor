@@ -21,7 +21,7 @@ export function coachesView(){
 }
 
 function coachCard(c, db) {
-  const team = db.teams.find(t => t.id === c.teamId);
+  const teamNames = (c.teamIds || []).map(id => db.teams.find(t => t.id === id)?.name).filter(Boolean).join(', ');
   const isPlayer = c.playerId;
   const flag = c.nationalityCode ? getNationFlag(c.nationalityCode) : '';
   
@@ -34,7 +34,7 @@ function coachCard(c, db) {
         <div>
           <div style="font-size:16px; font-weight:600; color:var(--silver-light)">${c.name} ${flag}</div>
           <div style="font-size:12px; color:var(--muted); margin-top:2px">${c.roleType === 'coach' ? 'Head Coach' : 'Asistente'}</div>
-          ${team ? `<div class="chip chip-accent" style="margin-top:6px;font-size:10px">${team.name}</div>` : `<div class="chip" style="margin-top:6px;font-size:10px;color:var(--gold)">AGENTE LIBRE</div>`}
+          ${teamNames ? `<div class="chip chip-accent" style="margin-top:6px;font-size:10px">${teamNames}</div>` : `<div class="chip" style="margin-top:6px;font-size:10px;color:var(--gold)">AGENTE LIBRE</div>`}
         </div>
       </div>
       <div class="divider"></div>
@@ -74,11 +74,13 @@ function openCoachForm(coachId = null) {
     profilePicture: coach?.profilePicture || '',
     name: coach?.name || '',
     roleType: coach?.roleType || 'coach',
-    teamId: coach?.teamId || '',
+    teamIds: coach?.teamIds ? JSON.parse(JSON.stringify(coach.teamIds)) : [],
     playerId: coach?.playerId || '',
     nationalityCode: coach?.nationalityCode || '',
     rlTracker: coach?.rlTracker || '',
-    socials: coach?.socials || { twitter: '', twitch: '', instagram: '' }
+    discordId: coach?.discordId || '',
+    socials: coach?.socials || { twitter: '', twitch: '', youtube: '', instagram: '' },
+    customLinks: coach?.customLinks ? JSON.parse(JSON.stringify(coach.customLinks)) : []
   };
 
   openModal({
@@ -105,34 +107,47 @@ function openCoachForm(coachId = null) {
             </div>
           </div>
           <div class="row">
-            <div class="field"><label>Equipo (Opcional)</label>
-              <select class="select" id="cTeam">
-                <option value="">— Sin Equipo (Agente Libre) —</option>
-                ${db.teams.map(t => `<option value="${t.id}" ${state.teamId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
-              </select>
-            </div>
-            <div class="field"><label>Vincular a Jugador (Opcional)</label>
+            <div class="field">
+              <label>Vincular a Jugador (Opcional)</label>
               <select class="select" id="cPlayer">
                 <option value="">— No es jugador —</option>
                 ${db.players.map(p => `<option value="${p.id}" ${state.playerId === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
               </select>
             </div>
+            <div class="field"><label>Nacionalidad</label>
+              <select class="select" id="cNation">
+                <option value="">— Sin especificar —</option>
+                ${NATIONS.map(n => `<option value="${n.code}" ${state.nationalityCode === n.code ? 'selected' : ''}>${n.flag} ${n.name}</option>`).join('')}
+              </select>
+            </div>
           </div>
         </div>
       </div>
-      <div class="row">
-        <div class="field"><label>Nacionalidad</label>
-          <select class="select" id="cNation">
-            <option value="">— Sin especificar —</option>
-            ${NATIONS.map(n => `<option value="${n.code}" ${state.nationalityCode === n.code ? 'selected' : ''}>${n.flag} ${n.name}</option>`).join('')}
-          </select>
+      
+      <div class="divider"></div>
+      
+      <div class="field">
+        <label>Equipos a su mando</label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; background:var(--bg-graphite); padding:12px; border-radius:8px; border:1px solid var(--border-soft); max-height:150px; overflow-y:auto;">
+          ${db.teams.map(t => `
+            <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" class="chk-coach-team" value="${t.id}" ${state.teamIds.includes(t.id) ? 'checked' : ''}>
+              ${t.name}
+            </label>
+          `).join('')}
         </div>
-        <div class="field"><label>RL Tracker</label><input class="input" id="cTracker" value="${state.rlTracker}"></div>
+        <small class="field-hint">Puedes asignarle múltiples equipos.</small>
       </div>
+
+      <div class="row">
+        <div class="field"><label>RL Tracker</label><input class="input" id="cTracker" value="${state.rlTracker}"></div>
+        <div class="field"><label>ID de Discord</label><input class="input" id="cDiscordId" value="${state.discordId}" placeholder="Ej: usuario#1234"></div>
+      </div>
+      
       <div class="row-3">
         <div class="field"><label>Twitter</label><input class="input" id="cTwitter" value="${state.socials.twitter}"></div>
         <div class="field"><label>Twitch</label><input class="input" id="cTwitch" value="${state.socials.twitch}"></div>
-        <div class="field"><label>Instagram</label><input class="input" id="cInsta" value="${state.socials.instagram}"></div>
+        <div class="field"><label>YouTube</label><input class="input" id="cYoutube" value="${state.socials.youtube}"></div>
       </div>
     `,
     footer: `
@@ -176,20 +191,25 @@ function openCoachForm(coachId = null) {
         const name = root.querySelector('#cName').value.trim();
         if (!name) return toast('El nombre es obligatorio', 'error');
 
+        const selectedTeams = Array.from(root.querySelectorAll('.chk-coach-team:checked')).map(cb => cb.value);
+
         const payload = {
           id: coachId || uid('ch'),
           name,
           roleType: root.querySelector('#cRole').value,
-          teamId: root.querySelector('#cTeam').value || null,
+          teamIds: selectedTeams,
           playerId: root.querySelector('#cPlayer').value || null,
           nationalityCode: root.querySelector('#cNation').value,
           rlTracker: root.querySelector('#cTracker').value,
+          discordId: root.querySelector('#cDiscordId').value,
           socials: {
             twitter: root.querySelector('#cTwitter').value,
             twitch: root.querySelector('#cTwitch').value,
-            instagram: root.querySelector('#cInsta').value
+            youtube: root.querySelector('#cYoutube').value,
+            instagram: state.socials.instagram || '' // Mantenemos el que había
           },
           profilePicture: state.profilePicture,
+          customLinks: state.customLinks,
           history: coach?.history || [],
           trophies: coach?.trophies || []
         };
@@ -202,14 +222,17 @@ function openCoachForm(coachId = null) {
             d.coaches.push(payload);
           }
 
-          // Sincronizar nombre en el equipo
-          if (payload.teamId) {
-            const team = d.teams.find(t => t.id === payload.teamId);
-            if (team) {
-              if (payload.roleType === 'coach') team.coach = payload.name;
-              if (payload.roleType === 'assistant') team.assistant = payload.name;
+          // 🔥 Sincronizar nombres en los equipos
+          d.teams.forEach(t => {
+            if (selectedTeams.includes(t.id)) {
+              if (payload.roleType === 'coach') t.coach = payload.name;
+              if (payload.roleType === 'assistant') t.assistant = payload.name;
+            } else {
+              // Si lo quitamos del equipo, limpiamos el nombre
+              if (payload.roleType === 'coach' && t.coach === payload.name) t.coach = '';
+              if (payload.roleType === 'assistant' && t.assistant === payload.name) t.assistant = '';
             }
-          }
+          });
         });
 
         toast('Coach guardado', 'success');
@@ -225,7 +248,7 @@ export function showCoachProfile(coachId) {
   const c = db.coaches.find(x => x.id === coachId);
   if (!c) return;
 
-  const team = db.teams.find(t => t.id === c.teamId);
+  const teamNames = (c.teamIds || []).map(id => db.teams.find(t => t.id === id)?.name).filter(Boolean).join(', ');
   const flag = c.nationalityCode ? getNationFlag(c.nationalityCode) : '';
 
   openModal({
@@ -239,7 +262,7 @@ export function showCoachProfile(coachId) {
         <div>
           <h2 style="font-family:var(--font-display); font-size:24px; color:var(--silver-light); margin:0;">${c.name} ${flag}</h2>
           <div style="color:var(--accent); font-weight:600; margin-top:4px">${c.roleType === 'coach' ? 'Head Coach' : 'Asistente'}</div>
-          <div style="color:var(--muted); font-size:12px; margin-top:4px">${team ? team.name : 'Agente Libre'}</div>
+          <div style="color:var(--muted); font-size:12px; margin-top:4px">${teamNames || 'Agente Libre'}</div>
         </div>
       </div>
       
@@ -248,9 +271,10 @@ export function showCoachProfile(coachId) {
         <div>
           <div class="section-minihead">REDES SOCIALES</div>
           <div style="display:flex; flex-direction:column; gap:6px; font-size:12px">
+            ${c.discordId ? `<div><b>Discord:</b> ${c.discordId}</div>` : ''}
             ${c.socials?.twitter ? `<div><b>Twitter:</b> ${c.socials.twitter}</div>` : ''}
             ${c.socials?.twitch ? `<div><b>Twitch:</b> ${c.socials.twitch}</div>` : ''}
-            ${c.socials?.instagram ? `<div><b>Instagram:</b> ${c.socials.instagram}</div>` : ''}
+            ${c.socials?.youtube ? `<div><b>YouTube:</b> ${c.socials.youtube}</div>` : ''}
           </div>
         </div>
         <div>
