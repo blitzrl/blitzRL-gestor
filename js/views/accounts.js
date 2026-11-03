@@ -69,7 +69,7 @@ function renderAccountsList() {
 
   return _accounts.map(acc => {
     const coach = db.coaches.find(c => c.id === acc.coach_id);
-    const team = db.teams.find(t => t.id === acc.team_id);
+    const teamNames = coach?.teamIds?.map(id => db.teams.find(t => t.id === id)?.name).filter(Boolean).join(', ') || 'Sin equipos';
     
     return `
       <div class="card" style="margin-bottom:10px; border-left:4px solid var(--accent)">
@@ -77,7 +77,7 @@ function renderAccountsList() {
           <div>
             <div style="font-size:14px; font-weight:600; color:var(--silver-light); margin-bottom:4px;">
               ${coach ? coach.name : acc.display_name} 
-              ${team ? `<span style="color:var(--muted); font-size:12px;">(${team.name})</span>` : '<span style="color:var(--gold); font-size:12px;">(Agente Libre)</span>'}
+              <span style="color:var(--muted); font-size:12px;">(${teamNames})</span>
             </div>
             <div style="font-size:12px; color:var(--muted);">
               Usuario: <strong style="color:var(--accent)">${acc.username}</strong> · 
@@ -139,12 +139,10 @@ function bindAccountButtons() {
       try {
         const sb = getSupabase();
         
-        // ELIMINAR SESIONES ACTIVAS PRIMERO (Expulsión instantánea)
         if (acc) {
           await sb.from('coach_sessions').delete().eq('coach_id', acc.coach_id);
         }
 
-        // ELIMINAR LA CUENTA
         await sb.from('coach_accounts').delete().eq('id', accId);
         
         toast('Cuenta y sesiones eliminadas', 'success');
@@ -170,8 +168,8 @@ function openNewAccountModal() {
         <select class="select" id="acc-coach">
           <option value="">— Seleccionar Coach —</option>
           ${availableCoaches.map(c => {
-            const team = db.teams.find(t => t.id === c.teamId);
-            return `<option value="${c.id}">${c.name} (${team ? team.name : 'Libre'})</option>`;
+            const teamNames = (c.teamIds || []).map(id => db.teams.find(t => t.id === id)?.name).filter(Boolean).join(', ');
+            return `<option value="${c.id}">${c.name} (${teamNames || 'Libre'})</option>`;
           }).join('')}
         </select>
       </div>
@@ -200,9 +198,13 @@ function openNewAccountModal() {
 
         try {
           const sb = getSupabase();
+          
+          // 🔥 Se envía el primer equipo como principal (por retrocompatibilidad), pero el coach ahora tiene todos sus teamIds
+          const primaryTeamId = (coach.teamIds && coach.teamIds.length > 0) ? coach.teamIds[0] : null;
+
           const { data, error } = await sb.rpc('admin_create_coach_account', {
             p_coach_id: coachId,
-            p_team_id: coach.teamId || null,
+            p_team_id: primaryTeamId, 
             p_username: username,
             p_password: password,
             p_display_name: coach.name
