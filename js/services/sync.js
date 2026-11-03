@@ -10,7 +10,7 @@ const TABLE_TO_KEY = {
   playoffs: 'playoffs',
   news: 'news',
   archived_seasons: 'archivedSeasons',
-  coach_contracts: 'contracts', // <-- AÑADIDO
+  coach_contracts: 'contracts',
   config: 'config'
 };
 
