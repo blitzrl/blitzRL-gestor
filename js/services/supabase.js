@@ -90,21 +90,19 @@ export async function downloadAll() {
       id: r.id, name: r.name, year: r.year, archivedAt: r.archived_at,
       championByDivision: r.data?.championByDivision || {}, movements: r.data?.movements || [], snapshot: r.data?.snapshot || null
     })),
-    coaches: (coaches.data || []).map(r => ({
-      id: r.id,
-      name: r.name,
-      teamIds: r.data?.teamIds || (r.team_id ? [r.team_id] : []), // 🔥 LEE EL ARRAY DE MÚLTIPLES EQUIPOS
-      profilePicture: r.data?.profilePicture || '',
-      roleType: r.data?.roleType || 'coach',
-      playerId: r.data?.playerId || null,
-      nationalityCode: r.data?.nationalityCode || '',
-      rlTracker: r.data?.rlTracker || '',
-      discordId: r.data?.discordId || '',
-      socials: r.data?.socials || {},
-      customLinks: r.data?.customLinks || [],
-      history: r.data?.history || [],
-      trophies: r.data?.trophies || []
-    })),
+else if (tableName === 'coaches') {
+  await replaceTable(sb, 'coaches', db.coaches || [], c => ({
+    id: c.id, team_id: (c.teamIds && c.teamIds.length > 0) ? c.teamIds[0] : null, name: c.name || '',
+    data: { 
+      teamIds: c.teamIds || [],
+      orgName: c.orgName || '', // 🔥 NUEVO: persistir orgName en JSONB
+      profilePicture: c.profilePicture || '', roleType: c.roleType || 'coach', playerId: c.playerId || null,
+      nationalityCode: c.nationalityCode || '', rlTracker: c.rlTracker || '', discordId: c.discordId || '',
+      socials: c.socials || {}, customLinks: c.customLinks || [], history: c.history || [], trophies: c.trophies || []
+    }
+  }));
+  results.stats.coaches = (db.coaches || []).length;
+}
     contracts: (contracts.data || []).map(r => ({
       id: r.id, playerId: r.player_id, teamId: r.team_id, type: r.type, status: r.status,
       durationSeasons: r.duration_seasons, durationMatchdays: r.duration_matchdays,
