@@ -75,7 +75,7 @@ function teamCard(t){
 
   const searchable = `${t.name} ${t.coach} ${roster.map(r => r.player?.name || '').join(' ')}`.toLowerCase();
 
-  // 🔥 BUSCAR COACH Y AUXILIAR MEDIANTE teamIds
+  // 🔥 BÚSQUEDA CON teamIds
   const coachObj = db.coaches?.find(c => c.roleType === 'coach' && (c.teamIds || []).includes(t.id));
   const assistantObj = db.coaches?.find(c => c.roleType === 'assistant' && (c.teamIds || []).includes(t.id));
 
@@ -545,10 +545,21 @@ export function openPlayerForm(playerId=null, onSaved=null){
         });
       }
 
-      root.querySelector('#savePlayer').addEventListener('click', ()=>{
+      root.querySelector('#savePlayer').addEventListener('click', (e) => {
+        // 🔥 CANDADO 1: Evitar doble clic
+        if (e.target.disabled) return;
+        e.target.disabled = true;
+        const originalText = e.target.textContent;
+        e.target.textContent = 'GUARDANDO...';
+
         try {
           const name = root.querySelector('#pfName').value.trim();
-          if(!name) return toast('El nombre es obligatorio','error');
+          if(!name) {
+            e.target.disabled = false;
+            e.target.textContent = originalText;
+            return toast('El nombre es obligatorio','error');
+          }
+          
           const rank = root.querySelector('#pfRank').value;
           const isSSL = rank === 'SSL';
           
@@ -575,13 +586,23 @@ export function openPlayerForm(playerId=null, onSaved=null){
               Object.assign(p, payload);
               saved = p;
             } else {
-              saved = {
-                id: uid('ply'),
-                history: [], sanctions: [], pigHistory: [], pigTrend: '—',
-                careerSnapshots: [], trophies: [], priceHistory: [], status: 'owned', pendingTeamId: null,
-                ...payload
-              };
-              d.players.push(saved);
+              // 🔥 CANDADO 2: Validación de duplicados (si ya existe un jugador con ese nombre, actualizarlo en vez de crear otro)
+              const existingPlayer = d.players.find(p => p.name.toLowerCase() === name.toLowerCase());
+              
+              if (existingPlayer) {
+                // Si ya existe, lo actualizamos y lo devolvemos (evita duplicados)
+                Object.assign(existingPlayer, payload);
+                saved = existingPlayer;
+              } else {
+                // Si no existe, lo creamos
+                saved = {
+                  id: uid('ply'),
+                  history: [], sanctions: [], pigHistory: [], pigTrend: '—',
+                  careerSnapshots: [], trophies: [], priceHistory: [], status: 'owned', pendingTeamId: null,
+                  ...payload
+                };
+                d.players.push(saved);
+              }
             }
           });
 
@@ -595,6 +616,9 @@ export function openPlayerForm(playerId=null, onSaved=null){
         } catch(err) {
           console.error('[ZENITH] Error guardando jugador:', err);
           toast('Error al guardar: ' + (err.message || 'desconocido'), 'error');
+          // 🔥 Si falla, reactivamos el botón para que pueda intentar de nuevo
+          e.target.disabled = false;
+          e.target.textContent = originalText;
         }
       });
     }
