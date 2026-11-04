@@ -89,6 +89,34 @@ export function getRankLabel(rank, level, division){
 }
 
 // ============================================================
+// ABREVIATURAS DE RANGO (FIX FASE 1: Funciones faltantes)
+// ============================================================
+const RANK_SHORT = {
+  'SSL':            'SSL',
+  'Grand Champion': 'GC',
+  'Champion':       'C',
+  'Diamond':        'D'
+  // Platinum, Gold, Silver, Bronze → sin cambios
+};
+
+export function getRankLabelShort(rank, level, division){
+  if(!rank) return '—';
+  if(rank === 'SSL') return 'SSL';
+  const shortRank = RANK_SHORT[rank] || rank;
+  const parts = [shortRank];
+  if(level) parts.push(level);
+  if(division) parts.push(division);
+  return parts.join(' ');
+}
+
+export function getRankLabelResponsive(rank, level, division){
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 900;
+  return isMobile
+    ? getRankLabelShort(rank, level, division)
+    : getRankLabel(rank, level, division);
+}
+
+// ============================================================
 // ZONAS DE CLASIFICACIÓN (colores por defecto)
 // ============================================================
 export const ZONE_TYPES = [
