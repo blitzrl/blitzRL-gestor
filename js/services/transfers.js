@@ -4,7 +4,7 @@ import { openModal, closeTopModal, closeAllModals, toast } from './ui.js';
 import { calculatePlayerPrice, recordTransaction } from './economy.js';
 import { aggregatePlayerStats } from './statistics.js';
 import { openSigningWizard } from '../views/signingWizard.js';
-import { queueDiscordMessage } from './supabase.js'; // 🔥 NUEVO
+import { notifyDiscordTransfer } from './supabase.js'; // 🔥 IMPORTADO
 
 export function getPlayerCurrentTeam(playerId){
   const db = getDB();
@@ -32,9 +32,7 @@ export function doDeletePlayer(playerId){
 
     mutate(d => {
       d.players = (d.players || []).filter(p => p.id !== playerId);
-      (d.teams || []).forEach(t => {
-        t.roster = (t.roster || []).filter(r => r.playerId !== playerId);
-      });
+      (d.teams || []).forEach(t => { t.roster = (t.roster || []).filter(r => r.playerId !== playerId); });
       d.contracts = (d.contracts || []).filter(c => c.playerId !== playerId);
     });
     toast('Jugador eliminado', 'success');
@@ -190,9 +188,9 @@ export function doTransferPlayer(playerId, targetTeamId, forceReset, customPrice
       });
     });
 
-    // 🔥 NUEVO: Lógica para el Bot de Discord
+    // 🔥 AVISO AL BOT
     if (!goesPending) {
-      queueDiscordTransfer(player, fromTeam, targetTeam, price);
+      notifyDiscordTransfer(player, fromTeam, targetTeam, price);
     }
 
     toast(`✅ ${player.name} → ${targetTeam.name} por $${price.toLocaleString()}${goesPending ? ' (PENDIENTE)' : ''}`, 'success');
@@ -202,48 +200,6 @@ export function doTransferPlayer(playerId, targetTeamId, forceReset, customPrice
     console.error('[ZENITH] Error al transferir:', e);
     toast('Error: ' + e.message, 'error');
   }
-}
-
-// 🔥 NUEVO: Función que arma el Embed y lo manda a la cola
-async function queueDiscordTransfer(player, fromTeam, toTeam, price) {
-  const db = getDB();
-  const config = db.config?.discord || {};
-  if (!config.channelId) return; // Si no hay canal configurado, no hace nada.
-
-  // 1. Buscar Discord ID (Prioridad: Jugador -> Coach vinculado)
-  let discordId = player.discordId;
-  if (!discordId) {
-    const linkedCoach = db.coaches.find(c => c.playerId === player.id);
-    if (linkedCoach) discordId = linkedCoach.discordId;
-  }
-
-  // 2. Buscar Rol de Discord (Del equipo destino)
-  const roleId = toTeam.discordRoleId;
-
-  // 3. Formatear menciones
-  const playerMention = discordId ? `${player.name} <@${discordId}>` : player.name;
-  const teamMention = roleId ? `${toTeam.name} <@&${roleId}>` : toTeam.name;
-
-  // 4. Armar el Embed
-  const embed = {
-    title: config.title || 'TRASPASO OFICIAL',
-    color: parseInt((config.color || '#6FA8FF').replace('#', ''), 16),
-    fields: [
-      { name: 'Jugador', value: playerMention, inline: false },
-      { name: 'Origen', value: fromTeam?.name || 'Agente Libre', inline: true },
-      { name: 'Destino', value: teamMention, inline: true },
-      { name: 'Precio', value: `$${price.toLocaleString()}`, inline: true }
-    ],
-    timestamp: new Date().toISOString()
-  };
-
-  if (config.image) embed.image = { url: config.image };
-
-  // 5. Encolar
-  await queueDiscordMessage({
-    channelId: config.channelId,
-    embed: embed
-  });
 }
 
 export function openTransferModal(playerId){
