@@ -32,7 +32,9 @@ export function doDeletePlayer(playerId){
 
     mutate(d => {
       d.players = (d.players || []).filter(p => p.id !== playerId);
-      (d.teams || []).forEach(t => { t.roster = (t.roster || []).filter(r => r.playerId !== playerId); });
+      (d.teams || []).forEach(t => {
+        t.roster = (t.roster || []).filter(r => r.playerId !== playerId);
+      });
       d.contracts = (d.contracts || []).filter(c => c.playerId !== playerId);
     });
     toast('Jugador eliminado', 'success');
