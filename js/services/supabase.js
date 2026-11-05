@@ -45,8 +45,12 @@ export async function downloadAll() {
   const configData = config?.data?.data || {};
 
   return {
-    seasons: (seasons.data || []).map(r => ({ id: r.id, name: r.name, year: r.year, active: r.active })),
-    divisions: (divisions.data || []).map(r => ({ id: r.id, seasonId: r.season_id, name: r.name, tier: r.tier, visible: r.visible, config: r.data?.config || {} })),
+    seasons: (seasons.data || []).map(r => ({
+      id: r.id, name: r.name, year: r.year, active: r.active
+    })),
+    divisions: (divisions.data || []).map(r => ({
+      id: r.id, seasonId: r.season_id, name: r.name, tier: r.tier, visible: r.visible, config: r.data?.config || {}
+    })),
     teams: (teams.data || []).map(r => ({
       id: r.id, divisionId: r.division_id, seasonId: r.season_id, name: r.name,
       tag: r.data?.tag || '', logo: r.data?.logo || '', coach: r.data?.coach || '', 
@@ -88,7 +92,8 @@ export async function downloadAll() {
       championByDivision: r.data?.championByDivision || {}, movements: r.data?.movements || [], snapshot: r.data?.snapshot || null
     })),
     coaches: (coaches.data || []).map(r => ({
-      id: r.id, name: r.name,
+      id: r.id,
+      name: r.name,
       teamIds: r.data?.teamIds || (r.team_id ? [r.team_id] : []),
       orgName: r.data?.orgName || '',
       profilePicture: r.data?.profilePicture || '',
@@ -133,11 +138,15 @@ export async function pushTables(tables) {
   for (const tableName of tables) {
     try {
       if (tableName === 'seasons') {
-        await replaceTable(sb, 'seasons', db.seasons || [], s => ({ id: s.id, name: s.name || '', year: s.year || 2026, active: !!s.active, data: {} }));
+        await replaceTable(sb, 'seasons', db.seasons || [], s => ({
+          id: s.id, name: s.name || '', year: s.year || 2026, active: !!s.active, data: {}
+        }));
         results.stats.seasons = (db.seasons || []).length;
       }
       else if (tableName === 'divisions') {
-        await replaceTable(sb, 'divisions', db.divisions || [], d => ({ id: d.id, season_id: d.seasonId || null, name: d.name || '', tier: d.tier || 1, visible: d.visible !== false, data: { config: d.config || {} } }));
+        await replaceTable(sb, 'divisions', db.divisions || [], d => ({
+          id: d.id, season_id: d.seasonId || null, name: d.name || '', tier: d.tier || 1, visible: d.visible !== false, data: { config: d.config || {} }
+        }));
         results.stats.divisions = (db.divisions || []).length;
       }
       else if (tableName === 'teams') {
@@ -149,44 +158,82 @@ export async function pushTables(tables) {
       }
       else if (tableName === 'players') {
         const teamByPlayerId = new Map();
-        (db.teams || []).forEach(t => { (t.roster || []).forEach(r => teamByPlayerId.set(r.playerId, t.divisionId || null)); });
+        (db.teams || []).forEach(t => {
+          (t.roster || []).forEach(r => teamByPlayerId.set(r.playerId, t.divisionId || null));
+        });
         await replaceTable(sb, 'players', db.players || [], p => ({
           id: p.id, division_id: p.divisionId || teamByPlayerId.get(p.id) || null, name: p.name || '',
-          data: { platform: p.platform || 'Steam', nationalityCode: p.nationalityCode || '', rank: p.rank || '', rankLevel: p.rankLevel ?? 2, rankDivision: p.rankDivision || 'II', rlTracker: p.rlTracker || '', profilePicture: p.profilePicture || '', discordId: p.discordId || '', socials: p.socials || [], history: p.history || [], sanctions: p.sanctions || [], pigHistory: p.pigHistory || [], pigTrend: p.pigTrend || '—', careerSnapshots: p.careerSnapshots || [], trophies: p.trophies || [], priceHistory: p.priceHistory || [], status: p.status || 'owned', pendingTeamId: p.pendingTeamId || null, marketValue: p.marketValue || null, onLoan: p.onLoan || false, ownerTeamId: p.ownerTeamId || null, contractId: p.contractId || null, seasonStats: p.seasonStats || {} }
+          data: {
+            platform: p.platform || 'Steam', nationalityCode: p.nationalityCode || '', rank: p.rank || '',
+            rankLevel: p.rankLevel ?? 2, rankDivision: p.rankDivision || 'II', rlTracker: p.rlTracker || '',
+            profilePicture: p.profilePicture || '', discordId: p.discordId || '', socials: p.socials || [],
+            history: p.history || [], sanctions: p.sanctions || [], pigHistory: p.pigHistory || [],
+            pigTrend: p.pigTrend || '—', careerSnapshots: p.careerSnapshots || [], trophies: p.trophies || [],
+            priceHistory: p.priceHistory || [], status: p.status || 'owned', pendingTeamId: p.pendingTeamId || null,
+            marketValue: p.marketValue || null, onLoan: p.onLoan || false, ownerTeamId: p.ownerTeamId || null,
+            contractId: p.contractId || null, seasonStats: p.seasonStats || {}
+          }
         }));
         results.stats.players = (db.players || []).length;
       }
       else if (tableName === 'coaches') {
         await replaceTable(sb, 'coaches', db.coaches || [], c => ({
           id: c.id, team_id: (c.teamIds && c.teamIds.length > 0) ? c.teamIds[0] : null, name: c.name || '',
-          data: { teamIds: c.teamIds || [], orgName: c.orgName || '', profilePicture: c.profilePicture || '', roleType: c.roleType || 'coach', playerId: c.playerId || null, nationalityCode: c.nationalityCode || '', rlTracker: c.rlTracker || '', discordId: c.discordId || '', socials: c.socials || {}, customLinks: c.customLinks || [], history: c.history || [], trophies: c.trophies || [] }
+          data: { 
+            teamIds: c.teamIds || [],
+            orgName: c.orgName || '',
+            profilePicture: c.profilePicture || '', roleType: c.roleType || 'coach', playerId: c.playerId || null,
+            nationalityCode: c.nationalityCode || '', rlTracker: c.rlTracker || '', discordId: c.discordId || '',
+            socials: c.socials || {}, customLinks: c.customLinks || [], history: c.history || [], trophies: c.trophies || []
+          }
         }));
         results.stats.coaches = (db.coaches || []).length;
       }
       else if (tableName === 'matches') {
-        await replaceTable(sb, 'matches', db.matches || [], m => ({ id: m.id, division_id: m.divisionId || null, season_id: m.seasonId || null, matchday: m.matchday || 0, status: m.status || 'pending', data: { teamAId: m.teamAId || null, teamBId: m.teamBId || null, format: m.format || 'BO3', date: m.date || '', time: m.time || '', locked: !!m.locked, games: m.games || [] } }));
+        await replaceTable(sb, 'matches', db.matches || [], m => ({
+          id: m.id, division_id: m.divisionId || null, season_id: m.seasonId || null, matchday: m.matchday || 0, status: m.status || 'pending',
+          data: { teamAId: m.teamAId || null, teamBId: m.teamBId || null, format: m.format || 'BO3', date: m.date || '', time: m.time || '', locked: !!m.locked, games: m.games || [] }
+        }));
         results.stats.matches = (db.matches || []).length;
       }
       else if (tableName === 'playoffs') {
-        const rows = (db.playoffs || []).map((p, i) => ({ id: `playoff_${p.divisionId || i}`, division_id: p.divisionId || null, season_id: p.seasonId || null, data: { status: p.status || 'pending', bracket: p.bracket || null, championId: p.championId || null } }));
+        const rows = (db.playoffs || []).map((p, i) => ({
+          id: `playoff_${p.divisionId || i}`, division_id: p.divisionId || null, season_id: p.seasonId || null,
+          data: { status: p.status || 'pending', bracket: p.bracket || null, championId: p.championId || null }
+        }));
         await replaceTable(sb, 'playoffs', rows, r => r);
         results.stats.playoffs = rows.length;
       }
       else if (tableName === 'news') {
-        await replaceTable(sb, 'news', db.news || [], n => ({ id: n.id, date: n.date || '', published: n.published !== false, pinned: !!n.pinned, data: { title: n.title || '', body: n.body || '', category: n.category || 'GENERAL', customCategory: n.customCategory || '', banner: n.banner || '', featured: !!n.featured, goldenFrame: !!n.goldenFrame, blocks: n.blocks || [] } }));
+        await replaceTable(sb, 'news', db.news || [], n => ({
+          id: n.id, date: n.date || '', published: n.published !== false, pinned: !!n.pinned,
+          data: { title: n.title || '', body: n.body || '', category: n.category || 'GENERAL', customCategory: n.customCategory || '', banner: n.banner || '', featured: !!n.featured, goldenFrame: !!n.goldenFrame, blocks: n.blocks || [] }
+        }));
         results.stats.news = (db.news || []).length;
       }
       else if (tableName === 'archived_seasons') {
-        await replaceTable(sb, 'archived_seasons', db.archivedSeasons || [], a => ({ id: a.id, name: a.name || '', year: a.year || 2026, archived_at: a.archivedAt || new Date().toISOString(), data: { championByDivision: a.championByDivision || {}, movements: a.movements || [], snapshot: a.snapshot || null } }));
+        await replaceTable(sb, 'archived_seasons', db.archivedSeasons || [], a => ({
+          id: a.id, name: a.name || '', year: a.year || 2026, archived_at: a.archivedAt || new Date().toISOString(),
+          data: { championByDivision: a.championByDivision || {}, movements: a.movements || [], snapshot: a.snapshot || null }
+        }));
         results.stats.archived_seasons = (db.archivedSeasons || []).length;
       }
       else if (tableName === 'coach_contracts') {
-        await replaceTable(sb, 'coach_contracts', db.contracts || [], c => ({ id: c.id, player_id: c.playerId, team_id: c.teamId, type: c.type, status: c.status, duration_seasons: c.durationSeasons || 1, duration_matchdays: c.durationMatchdays || 0, start_season_id: c.startSeasonId || null, end_season_id: c.endSeasonId || null, end_matchday: c.endMatchday || 0, data: { transferPrice: c.transferPrice || 0, clauses: c.clauses || {}, history: c.history || [] } }));
+        await replaceTable(sb, 'coach_contracts', db.contracts || [], c => ({
+          id: c.id, player_id: c.playerId, team_id: c.teamId, type: c.type, status: c.status,
+          duration_seasons: c.durationSeasons || 1, duration_matchdays: c.durationMatchdays || 0,
+          start_season_id: c.startSeasonId || null, end_season_id: c.endSeasonId || null, end_matchday: c.endMatchday || 0,
+          data: { transferPrice: c.transferPrice || 0, clauses: c.clauses || {}, history: c.history || [] }
+        }));
         results.stats.coach_contracts = (db.contracts || []).length;
       }
       else if (tableName === 'config') {
         const cfgData = {
-          rosterRules: db.config?.rosterRules || {}, pigWeights: db.config?.pigWeights || {}, badStreak: db.config?.badStreak || {}, seasonEnd: db.config?.seasonEnd || {}, ai: db.config?.ai || {}, theme: db.config?.theme || null, economy: db.config?.economy || null, marketSettings: db.config?.marketSettings || {}, widgets: db.widgets || [], trophies: db.trophies || {}, transferLog: db.transferLog || [], transferBannerBg: db.transferBannerBg || '', economyLedger: db.economyLedger || [], discord: db.config?.discord || null
+          rosterRules: db.config?.rosterRules || {}, pigWeights: db.config?.pigWeights || {}, badStreak: db.config?.badStreak || {},
+          seasonEnd: db.config?.seasonEnd || {}, ai: db.config?.ai || {}, theme: db.config?.theme || null, economy: db.config?.economy || null, 
+          marketSettings: db.config?.marketSettings || {}, widgets: db.widgets || [], trophies: db.trophies || {},
+          transferLog: db.transferLog || [], transferBannerBg: db.transferBannerBg || '', economyLedger: db.economyLedger || [],
+          discord: db.config?.discord || null
         };
         const { error: cfgErr } = await sb.from('config').upsert({ id: 1, data: cfgData });
         if (cfgErr) throw new Error('config: ' + cfgErr.message);
@@ -235,23 +282,18 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   if (!db) return;
   
   const config = db.config?.discord || {};
-  if (!config.channelId) return; // Si no hay canal configurado, no hace nada.
+  if (!config.channelId) return;
 
-  // 1. Buscar Discord ID (Prioridad: Jugador -> Coach vinculado)
   let discordId = player.discordId;
   if (!discordId) {
     const linkedCoach = db.coaches?.find(c => c.playerId === player.id);
     if (linkedCoach) discordId = linkedCoach.discordId;
   }
 
-  // 2. Buscar Rol de Discord (Del equipo destino)
   const roleId = toTeam?.discordRoleId;
-
-  // 3. Formatear menciones
   const playerMention = discordId ? `${player.name} <@${discordId}>` : player.name;
   const teamMention = roleId ? `${toTeam.name} <@&${roleId}>` : (toTeam?.name || 'Agente Libre');
 
-  // 4. Armar el Embed
   const embed = {
     title: config.title || 'TRASPASO OFICIAL',
     color: parseInt((config.color || '#6FA8FF').replace('#', ''), 16),
@@ -265,8 +307,6 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   };
 
   if (config.image) embed.image = { url: config.image };
-
-  // 5. Encolar
   await queueDiscordMessage({ channelId: config.channelId, embed });
 }
 
