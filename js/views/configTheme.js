@@ -1,7 +1,7 @@
 import { getDB, mutate } from '../services/storage.js';
 import { toast, openModal, closeTopModal } from '../services/ui.js';
-import { getDefaultTheme, DEFAULT_THEME, uid } from '../data/database.js';
-import { applyTheme, exportTheme, importTheme, themePreviewBg } from '../services/theme.js';
+import { getDefaultTheme, uid } from '../data/database.js';
+import { DEFAULT_THEME, applyTheme, exportTheme, importTheme, themePreviewBg } from '../services/theme.js'; // 🔥 FIX: DEFAULT_THEME importado desde theme.js
 import { logChange } from '../services/history.js';
 
 function esc(str){
