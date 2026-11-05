@@ -5,7 +5,9 @@ import { getSupabase, notifyDiscordTransfer } from './supabase.js'; // 🔥 IMPO
 
 function getTeamCurrentMatchday(teamId, db) {
   if (!teamId) return 0;
-  const teamMatches = db.matches.filter(m => (m.teamAId === teamId || m.teamBId === teamId) && m.status === 'finished');
+  const teamMatches = db.matches.filter(m => 
+    (m.teamAId === teamId || m.teamBId === teamId) && m.status === 'finished'
+  );
   return Math.max(0, ...teamMatches.map(m => m.matchday));
 }
 
@@ -126,7 +128,7 @@ export async function createContract(payload) {
     }
   });
 
-  // 🔥 AVISO AL BOT (Solo si es fichaje permanente)
+  // 🔥 AVISO AL BOT
   if (type === 'permanent') {
     notifyDiscordTransfer(player, origin, target, uniquePrice || 0);
   }
@@ -148,6 +150,7 @@ export function processContractMatchday(match) {
       if (!c.stats) c.stats = { matchdaysCharged: 0, totalCharged: 0, gamesPlayed: 0, goals: 0, assists: 0, saves: 0, shots: 0, efficiency: 0 };
       if (!c.clauses) c.clauses = { perMatchday: { enabled: false, amount: 0, chargeEvenIfNotPlayed: false }, performance: { enabled: false, targets: {}, onFail: 'free_agent' }, renewalOption: { enabled: false, price: 0 }, sellOnClauses: [] };
       
+      const activeSeason = d.seasons.find(s => s.active);
       const isExpired = c.endMatchday > 0 && match.matchday >= c.endMatchday;
       if (isExpired && c.type === 'loan') { finalizeContractInternal(d, c, 'contract_complete'); return; }
       if (c.clauses.performance.enabled && hasPerformanceFailed(c) && match.matchday >= c.endMatchday) { finalizeContractInternal(d, c, 'performance_failed'); return; }
