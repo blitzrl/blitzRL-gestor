@@ -54,7 +54,8 @@ export async function downloadAll() {
     teams: (teams.data || []).map(r => ({
       id: r.id, divisionId: r.division_id, seasonId: r.season_id, name: r.name,
       tag: r.data?.tag || '', logo: r.data?.logo || '', coach: r.data?.coach || '', 
-      assistant: r.data?.assistant || '', roster: r.data?.roster || [], trophies: r.data?.trophies || [], money: r.data?.money || 0 
+      assistant: r.data?.assistant || '', roster: r.data?.roster || [], trophies: r.data?.trophies || [], money: r.data?.money || 0,
+      discordRoleId: r.data?.discordRoleId || '' // 🔥 NUEVO
     })),
     players: (players.data || []).map(r => ({
       id: r.id, divisionId: r.division_id, name: r.name,
@@ -94,13 +95,13 @@ export async function downloadAll() {
       id: r.id,
       name: r.name,
       teamIds: r.data?.teamIds || (r.team_id ? [r.team_id] : []),
-      orgName: r.data?.orgName || '', // 🔥 NUEVO: carga orgName en el Gestor
+      orgName: r.data?.orgName || '',
       profilePicture: r.data?.profilePicture || '',
       roleType: r.data?.roleType || 'coach',
       playerId: r.data?.playerId || null,
       nationalityCode: r.data?.nationalityCode || '',
       rlTracker: r.data?.rlTracker || '',
-      discordId: r.data?.discordId || '',
+      discordId: r.data?.discordId || '', // 🔥 Asegurado
       socials: r.data?.socials || {},
       customLinks: r.data?.customLinks || [],
       history: r.data?.history || [],
@@ -118,7 +119,8 @@ export async function downloadAll() {
       badStreak: configData.badStreak || { enabled:true, minGames:5, consecutiveLosses:3, penalty:0.1 },
       seasonEnd: configData.seasonEnd || { autoAssignTrophies:true, requireAllDivisions:true },
       ai: configData.ai || null, theme: configData.theme || null, economy: configData.economy || null,
-      marketSettings: configData.marketSettings || { open: true, allowTransfers: true, allowLoans: true }
+      marketSettings: configData.marketSettings || { open: true, allowTransfers: true, allowLoans: true },
+      discord: configData.discord || { channelId: '', title: 'TRASPASO OFICIAL', color: '#6FA8FF', image: '' } // 🔥 NUEVO
     },
     widgets: configData.widgets || null, trophies: configData.trophies || {},
     transferLog: configData.transferLog || [], transferBannerBg: configData.transferBannerBg || '',
@@ -150,7 +152,7 @@ export async function pushTables(tables) {
       else if (tableName === 'teams') {
         await replaceTable(sb, 'teams', db.teams || [], t => ({
           id: t.id, division_id: t.divisionId || null, season_id: t.seasonId || null, name: t.name || '',
-          data: { tag: t.tag || '', logo: t.logo || '', coach: t.coach || '', assistant: t.assistant || '', roster: t.roster || [], trophies: t.trophies || [], money: t.money || 0 }
+          data: { tag: t.tag || '', logo: t.logo || '', coach: t.coach || '', assistant: t.assistant || '', roster: t.roster || [], trophies: t.trophies || [], money: t.money || 0, discordRoleId: t.discordRoleId || '' }
         }));
         results.stats.teams = (db.teams || []).length;
       }
@@ -179,7 +181,7 @@ export async function pushTables(tables) {
           id: c.id, team_id: (c.teamIds && c.teamIds.length > 0) ? c.teamIds[0] : null, name: c.name || '',
           data: { 
             teamIds: c.teamIds || [],
-            orgName: c.orgName || '', // 🔥 NUEVO: persiste orgName en JSONB
+            orgName: c.orgName || '',
             profilePicture: c.profilePicture || '', roleType: c.roleType || 'coach', playerId: c.playerId || null,
             nationalityCode: c.nationalityCode || '', rlTracker: c.rlTracker || '', discordId: c.discordId || '',
             socials: c.socials || {}, customLinks: c.customLinks || [], history: c.history || [], trophies: c.trophies || []
@@ -230,7 +232,8 @@ export async function pushTables(tables) {
           rosterRules: db.config?.rosterRules || {}, pigWeights: db.config?.pigWeights || {}, badStreak: db.config?.badStreak || {},
           seasonEnd: db.config?.seasonEnd || {}, ai: db.config?.ai || {}, theme: db.config?.theme || null, economy: db.config?.economy || null, 
           marketSettings: db.config?.marketSettings || {}, widgets: db.widgets || [], trophies: db.trophies || {},
-          transferLog: db.transferLog || [], transferBannerBg: db.transferBannerBg || '', economyLedger: db.economyLedger || []
+          transferLog: db.transferLog || [], transferBannerBg: db.transferBannerBg || '', economyLedger: db.economyLedger || [],
+          discord: db.config?.discord || null // 🔥 NUEVO
         };
         const { error: cfgErr } = await sb.from('config').upsert({ id: 1, data: cfgData });
         if (cfgErr) throw new Error('config: ' + cfgErr.message);
@@ -261,6 +264,17 @@ async function replaceTable(sb, tableName, rows, mapFn) {
       if (delErr) throw new Error(`delete orphans: ${delErr.message}`);
     }
   }
+}
+
+// 🔥 NUEVO: Función para encolar mensajes del Bot
+export async function queueDiscordMessage(payload) {
+  const sb = getSupabase();
+  const { error } = await sb.from('discord_queue').insert({
+    channel_id: payload.channelId,
+    payload: payload.embed,
+    status: 'pending'
+  });
+  if (error) console.error('[DISCORD QUEUE] Error:', error);
 }
 
 export function subscribeRealtime(onChange) {
