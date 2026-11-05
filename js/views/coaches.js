@@ -29,7 +29,6 @@ function coachCard(c, db) {
   const isPlayer = c.playerId;
   const flag = c.nationalityCode ? getNationFlag(c.nationalityCode) : '';
   
-  // 🔥 MEJORA: Badge dorado más prominente, igual al del modal
   const hasGroup = c.orgName && (c.teamIds || []).length > 1;
   const orgBadge = hasGroup 
     ? `<div style="margin-top:8px;"><span class="chip chip-gold" style="font-size:10px; font-weight:600;">👥 ${_esc(c.orgName)}</span></div>` 
@@ -94,7 +93,7 @@ function openCoachForm(coachId = null) {
     playerId: coach?.playerId || '',
     nationalityCode: coach?.nationalityCode || '',
     rlTracker: coach?.rlTracker || '',
-    discordId: coach?.discordId || '',
+    discordId: coach?.discordId || '', // 🔥 Asegurado
     socials: coach?.socials || { twitter: '', twitch: '', youtube: '', instagram: '' },
     customLinks: coach?.customLinks ? JSON.parse(JSON.stringify(coach.customLinks)) : []
   };
@@ -163,7 +162,11 @@ function openCoachForm(coachId = null) {
 
       <div class="row">
         <div class="field"><label>RL Tracker</label><input class="input" id="cTracker" value="${state.rlTracker}"></div>
-        <div class="field"><label>ID de Discord</label><input class="input" id="cDiscordId" value="${state.discordId}" placeholder="Ej: usuario#1234"></div>
+        <div class="field" id="cDiscordWrap">
+          <label>ID de Discord (Numérico)</label>
+          <input class="input" id="cDiscordId" value="${state.discordId}" placeholder="Ej: 123456789012345678">
+          <small class="field-hint">Click derecho en Discord > Copiar ID.</small>
+        </div>
       </div>
       
       <div class="row-3">
@@ -195,6 +198,9 @@ function openCoachForm(coachId = null) {
 
       const orgNameWrap = root.querySelector('#cOrgNameWrap');
       const orgNameInput = root.querySelector('#cOrgName');
+      const cPlayerSelect = root.querySelector('#cPlayer');
+      const cDiscordWrap = root.querySelector('#cDiscordWrap');
+      const cDiscordInput = root.querySelector('#cDiscordId');
 
       function updateOrgNameVisibility() {
         const checked = root.querySelectorAll('.chk-coach-team:checked').length;
@@ -206,10 +212,22 @@ function openCoachForm(coachId = null) {
         }
       }
 
+      // 🔥 Regla: Si vincula a un jugador, ocultamos el campo de Discord (usará el del jugador)
+      function updateDiscordVisibility() {
+        if (cPlayerSelect.value) {
+          cDiscordWrap.style.display = 'none';
+        } else {
+          cDiscordWrap.style.display = '';
+        }
+      }
+
       root.querySelectorAll('.chk-coach-team').forEach(cb => {
         cb.addEventListener('change', updateOrgNameVisibility);
       });
       updateOrgNameVisibility();
+      
+      cPlayerSelect.addEventListener('change', updateDiscordVisibility);
+      updateDiscordVisibility();
 
       root.querySelector('#cPlayer').addEventListener('change', (e) => {
         const pid = e.target.value;
@@ -233,6 +251,9 @@ function openCoachForm(coachId = null) {
 
         const selectedTeams = Array.from(root.querySelectorAll('.chk-coach-team:checked')).map(cb => cb.value);
         const orgName = selectedTeams.length >= 2 ? (orgNameInput.value.trim() || '') : '';
+        
+        // Si tiene jugador vinculado, el discordId se maneja desde el jugador, pero guardamos lo que haya para seguridad.
+        const finalDiscordId = cDiscordInput.value.trim();
 
         const payload = {
           id: coachId || uid('ch'),
@@ -240,10 +261,10 @@ function openCoachForm(coachId = null) {
           roleType: root.querySelector('#cRole').value,
           teamIds: selectedTeams,
           orgName,
-          playerId: root.querySelector('#cPlayer').value || null,
+          playerId: cPlayerSelect.value || null,
           nationalityCode: root.querySelector('#cNation').value,
           rlTracker: root.querySelector('#cTracker').value,
-          discordId: root.querySelector('#cDiscordId').value,
+          discordId: finalDiscordId, // 🔥 NUEVO
           socials: {
             twitter: root.querySelector('#cTwitter').value,
             twitch: root.querySelector('#cTwitch').value,
