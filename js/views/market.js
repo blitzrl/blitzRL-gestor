@@ -3,6 +3,7 @@ import { uid } from '../data/database.js';
 import { openModal, closeTopModal, toast } from '../services/ui.js';
 import { generateTransferBanner } from '../services/banner.js';
 import { openTeamForm } from './teams.js';
+import { queueDiscordMessage } from '../services/supabase.js'; // 🔥 NUEVO
 
 let _mktDiv  = 'all';
 let _mktType = 'all';
@@ -68,7 +69,7 @@ function renderPlayersMarket(db){
                   if (m.type === 'free') typeLabel = 'AGENTE LIBRE';
                   if (m.type === 'loan') typeLabel = 'PRÉSTAMO';
                   if (m.type === 'pending') typeLabel = 'PENDIENTE';
-                  if (m.type === 'portal_transfer') { typeLabel = 'FICHAJE'; chipClass = 'transfer'; } // <-- NUEVO
+                  if (m.type === 'portal_transfer') { typeLabel = 'FICHAJE'; chipClass = 'transfer'; }
 
                   const priceVal = m.price;
                   const priceStr = priceVal !== undefined ? `$${priceVal.toLocaleString()}` : '—';
@@ -93,7 +94,13 @@ function renderPlayersMarket(db){
                       </td>
                       <td class="num"><span class="market-type-chip ${chipClass}">${typeLabel}</span></td>
                       <td class="num" style="color:var(--gold);font-weight:600">${priceStr}</td>
-                      <td class="num"><button class="btn btn-sm btn-primary" data-mkt-news="${m.id}">📰 NOTICIA</button></td>
+                      <td class="num">
+                        <div style="display:flex; gap:6px; justify-content:flex-end;">
+                          <button class="btn btn-sm btn-primary" data-mkt-news="${m.id}" title="Generar Noticia">📰</button>
+                          <!-- 🔥 NUEVO BOTÓN DE DISCORD -->
+                          <button class="btn btn-sm" data-mkt-discord="${m.id}" title="Reenviar a Discord" style="color:#5865F2; border-color:#5865F2;">🎮</button>
+                        </div>
+                      </td>
                     </tr>`;
                 }).join('')}
           </tbody>
@@ -152,9 +159,65 @@ export function bindMarketEvents(){
     btn.addEventListener('click', () => createNewsFromTransfer(btn.dataset.mktNews));
   });
 
+  // 🔥 NUEVO EVENTO PARA EL BOTÓN DE DISCORD
+  document.querySelectorAll('[data-mkt-discord]').forEach(btn => {
+    btn.addEventListener('click', () => resendTransferToDiscord(btn.dataset.mktDiscord));
+  });
+
   document.querySelectorAll('[data-transfer-staff]').forEach(btn => {
     btn.addEventListener('click', () => openStaffTransferModal(btn.dataset.transferStaff));
   });
+}
+
+// 🔥 NUEVA FUNCIÓN: Enviar traspaso a Discord manualmente
+async function resendTransferToDiscord(movId) {
+  const db = getDB();
+  const mov = db.transferLog.find(m => m.id === movId);
+  if (!mov) return toast('Movimiento no encontrado', 'error');
+
+  const config = db.config.discord || {};
+  if (!config.channelId) return toast('Falta configurar el ID del canal en Ajustes > Bot Discord', 'error');
+
+  const player = db.players.find(p => p.id === mov.playerId);
+  if (!player) return toast('Jugador no encontrado', 'error');
+
+  const fromTeam = db.teams.find(t => t.id === mov.fromTeamId);
+  const toTeam = db.teams.find(t => t.id === mov.toTeamId);
+
+  // 1. Buscar Discord ID (Prioridad: Jugador -> Coach vinculado)
+  let discordId = player.discordId;
+  if (!discordId) {
+    const linkedCoach = db.coaches.find(c => c.playerId === player.id);
+    if (linkedCoach) discordId = linkedCoach.discordId;
+  }
+  const playerMention = discordId ? `${player.name} <@${discordId}>` : player.name;
+
+  // 2. Buscar Rol de Discord (Del equipo destino)
+  const roleId = toTeam?.discordRoleId;
+  const teamMention = roleId ? `${toTeam.name} <@&${roleId}>` : (toTeam?.name || 'Agente Libre');
+
+  // 3. Armar el Embed
+  const embed = {
+    title: config.title || 'TRASPASO OFICIAL',
+    color: parseInt((config.color || '#6FA8FF').replace('#', ''), 16),
+    fields: [
+      { name: 'Jugador', value: playerMention, inline: false },
+      { name: 'Origen', value: fromTeam?.name || 'Agente Libre', inline: true },
+      { name: 'Destino', value: teamMention, inline: true },
+      { name: 'Precio', value: `$${(mov.price || 0).toLocaleString()}`, inline: true }
+    ],
+    timestamp: new Date().toISOString()
+  };
+
+  if (config.image) embed.image = { url: config.image };
+
+  // 4. Enviar a la cola
+  try {
+    await queueDiscordMessage({ channelId: config.channelId, embed });
+    toast('✅ Fichaje encolado. Revisa tu Discord en unos segundos.', 'success');
+  } catch (e) {
+    toast('Error al encolar: ' + e.message, 'error');
+  }
 }
 
 function openStaffTransferModal(coachId) {
