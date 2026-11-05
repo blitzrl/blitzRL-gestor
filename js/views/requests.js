@@ -193,7 +193,7 @@ export async function syncPortalTransfers() {
     try {
       const payload = req.payload;
       
-      // 🔥 Necesitamos extraer los equipos y el jugador antes del mutate para el bot
+      // Extraemos la info para el bot antes del mutate
       const db = getDB();
       const p = db.players.find(x => x.id === payload.playerId);
       const origin = db.teams.find(t => t.id === req.to_team_id); 
