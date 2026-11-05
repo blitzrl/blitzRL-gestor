@@ -75,7 +75,6 @@ function teamCard(t){
 
   const searchable = `${t.name} ${t.coach} ${roster.map(r => r.player?.name || '').join(' ')}`.toLowerCase();
 
-  // 🔥 BÚSQUEDA CON teamIds
   const coachObj = db.coaches?.find(c => c.roleType === 'coach' && (c.teamIds || []).includes(t.id));
   const assistantObj = db.coaches?.find(c => c.roleType === 'assistant' && (c.teamIds || []).includes(t.id));
 
@@ -198,6 +197,7 @@ export function openTeamForm(teamId=null){
     coach: team?.coach || '',
     assistant: team?.assistant || '',
     money: team?.money || 0,
+    discordRoleId: team?.discordRoleId || '', // 🔥 NUEVO
     roster: team ? JSON.parse(JSON.stringify(team.roster)) : []
   };
 
@@ -235,6 +235,11 @@ function renderTeamFormBody(formState, db){
         <input class="input" type="number" id="tMoney" value="${formState.money}">
         <small class="field-hint" style="color:${isDebt ? 'var(--danger)' : 'var(--muted)'}">Los cambios manuales se registrarán como "Ajuste manual".</small>
       </div>
+    </div>
+    <div class="field">
+      <label>ID del Rol de Discord (Opcional)</label>
+      <input class="input" id="tDiscordRoleId" value="${formState.discordRoleId}" placeholder="Ej: 123456789012345678">
+      <small class="field-hint">Click derecho en el rol del equipo en Discord > Copiar ID.</small>
     </div>
     <div class="divider"></div>
     <div class="section-minihead">
@@ -277,12 +282,14 @@ function bindTeamForm(root, formState, db, team, seasonId, activeDivisionId, mod
   const coachInput = root.querySelector('#tCoach');
   const assistantInput = root.querySelector('#tAssistant');
   const moneyInput = root.querySelector('#tMoney');
+  const discordRoleInput = root.querySelector('#tDiscordRoleId'); // 🔥 NUEVO
   const rosterRows = root.querySelector('#rosterRows');
 
   nameInput.addEventListener('input', ()=> formState.name = nameInput.value);
   coachInput.addEventListener('input', ()=> formState.coach = coachInput.value);
   assistantInput.addEventListener('input', ()=> formState.assistant = assistantInput.value);
   moneyInput.addEventListener('input', ()=> formState.money = +moneyInput.value || 0);
+  discordRoleInput.addEventListener('input', ()=> formState.discordRoleId = discordRoleInput.value.trim()); // 🔥 NUEVO
 
   const drop = root.querySelector('#logoDrop');
   const input = root.querySelector('#logoInput');
@@ -331,12 +338,12 @@ function bindTeamForm(root, formState, db, team, seasonId, activeDivisionId, mod
       mutate(d => {
         if(team){
           const t = d.teams.find(x=>x.id===team.id);
-          if(t) Object.assign(t, { name, coach: formState.coach, assistant: formState.assistant, logo: formState.logo, roster: validRoster });
+          if(t) Object.assign(t, { name, coach: formState.coach, assistant: formState.assistant, logo: formState.logo, roster: validRoster, discordRoleId: formState.discordRoleId });
         } else {
           savedTeamId = uid('team');
           d.teams.push({
             id: savedTeamId, name, tag:'', logo: formState.logo, coach: formState.coach, assistant: formState.assistant,
-            divisionId: activeDivisionId, seasonId, roster: validRoster, trophies: [], money: 0
+            divisionId: activeDivisionId, seasonId, roster: validRoster, trophies: [], money: 0, discordRoleId: formState.discordRoleId
           });
         }
       });
@@ -423,8 +430,9 @@ export function openPlayerForm(playerId=null, onSaved=null){
               <input class="input" id="pfTracker" type="url" placeholder="https://rocketleague.tracker.network/..." value="${player?.rlTracker||''}">
             </div>
             <div class="field">
-              <label>ID de Discord</label>
-              <input class="input" id="pfDiscordId" placeholder="Ej: usuario#1234 o ID numérico" value="${player?.discordId||''}">
+              <label>ID de Discord (Numérico)</label>
+              <input class="input" id="pfDiscordId" placeholder="Ej: 123456789012345678" value="${player?.discordId||''}">
+              <small class="field-hint">Click derecho en el usuario en Discord > Copiar ID.</small>
             </div>
           </div>
           
@@ -546,7 +554,6 @@ export function openPlayerForm(playerId=null, onSaved=null){
       }
 
       root.querySelector('#savePlayer').addEventListener('click', (e) => {
-        // 🔥 CANDADO 1: Evitar doble clic
         if (e.target.disabled) return;
         e.target.disabled = true;
         const originalText = e.target.textContent;
@@ -573,7 +580,7 @@ export function openPlayerForm(playerId=null, onSaved=null){
             rankLevel: isSSL ? null : +root.querySelector('#pfLevel').value,
             rankDivision: isSSL ? null : +root.querySelector('#pfDiv').value,
             rlTracker: root.querySelector('#pfTracker').value.trim(),
-            discordId: root.querySelector('#pfDiscordId').value.trim(),
+            discordId: root.querySelector('#pfDiscordId').value.trim(), // 🔥 Asegurado
             socials: cleanSocials,
             profilePicture: photoData
           };
@@ -586,15 +593,12 @@ export function openPlayerForm(playerId=null, onSaved=null){
               Object.assign(p, payload);
               saved = p;
             } else {
-              // 🔥 CANDADO 2: Validación de duplicados (si ya existe un jugador con ese nombre, actualizarlo en vez de crear otro)
               const existingPlayer = d.players.find(p => p.name.toLowerCase() === name.toLowerCase());
               
               if (existingPlayer) {
-                // Si ya existe, lo actualizamos y lo devolvemos (evita duplicados)
                 Object.assign(existingPlayer, payload);
                 saved = existingPlayer;
               } else {
-                // Si no existe, lo creamos
                 saved = {
                   id: uid('ply'),
                   history: [], sanctions: [], pigHistory: [], pigTrend: '—',
@@ -616,7 +620,6 @@ export function openPlayerForm(playerId=null, onSaved=null){
         } catch(err) {
           console.error('[ZENITH] Error guardando jugador:', err);
           toast('Error al guardar: ' + (err.message || 'desconocido'), 'error');
-          // 🔥 Si falla, reactivamos el botón para que pueda intentar de nuevo
           e.target.disabled = false;
           e.target.textContent = originalText;
         }
