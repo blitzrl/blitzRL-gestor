@@ -88,8 +88,7 @@ export async function downloadAll() {
       championByDivision: r.data?.championByDivision || {}, movements: r.data?.movements || [], snapshot: r.data?.snapshot || null
     })),
     coaches: (coaches.data || []).map(r => ({
-      id: r.id,
-      name: r.name,
+      id: r.id, name: r.name,
       teamIds: r.data?.teamIds || (r.team_id ? [r.team_id] : []),
       orgName: r.data?.orgName || '',
       profilePicture: r.data?.profilePicture || '',
@@ -100,8 +99,7 @@ export async function downloadAll() {
       discordId: r.data?.discordId || '',
       socials: r.data?.socials || {},
       customLinks: r.data?.customLinks || [],
-      history: r.data?.history || [],
-      trophies: r.data?.trophies || []
+      history: r.data?.history || [], trophies: r.data?.trophies || []
     })),
     contracts: (contracts.data || []).map(r => ({
       id: r.id, playerId: r.player_id, teamId: r.team_id, type: r.type, status: r.status,
@@ -116,7 +114,7 @@ export async function downloadAll() {
       seasonEnd: configData.seasonEnd || { autoAssignTrophies:true, requireAllDivisions:true },
       ai: configData.ai || null, theme: configData.theme || null, economy: configData.economy || null,
       marketSettings: configData.marketSettings || { open: true, allowTransfers: true, allowLoans: true },
-      discord: configData.discord || { channelId: '', title: 'TRASPASO OFICIAL', color: '#6FA8FF', image: '' }
+      discord: configData.discord || {}
     },
     widgets: configData.widgets || null, trophies: configData.trophies || {},
     transferLog: configData.transferLog || [], transferBannerBg: configData.transferBannerBg || '',
@@ -176,9 +174,7 @@ export async function pushTables(tables) {
         await replaceTable(sb, 'coaches', db.coaches || [], c => ({
           id: c.id, team_id: (c.teamIds && c.teamIds.length > 0) ? c.teamIds[0] : null, name: c.name || '',
           data: { 
-            teamIds: c.teamIds || [],
-            orgName: c.orgName || '',
-            profilePicture: c.profilePicture || '', roleType: c.roleType || 'coach', playerId: c.playerId || null,
+            teamIds: c.teamIds || [], orgName: c.orgName || '', profilePicture: c.profilePicture || '', roleType: c.roleType || 'coach', playerId: c.playerId || null,
             nationalityCode: c.nationalityCode || '', rlTracker: c.rlTracker || '', discordId: c.discordId || '',
             socials: c.socials || {}, customLinks: c.customLinks || [], history: c.history || [], trophies: c.trophies || []
           }
@@ -229,7 +225,7 @@ export async function pushTables(tables) {
           seasonEnd: db.config?.seasonEnd || {}, ai: db.config?.ai || {}, theme: db.config?.theme || null, economy: db.config?.economy || null, 
           marketSettings: db.config?.marketSettings || {}, widgets: db.widgets || [], trophies: db.trophies || {},
           transferLog: db.transferLog || [], transferBannerBg: db.transferBannerBg || '', economyLedger: db.economyLedger || [],
-          discord: db.config?.discord || null
+          discord: db.config?.discord || {}
         };
         const { error: cfgErr } = await sb.from('config').upsert({ id: 1, data: cfgData });
         if (cfgErr) throw new Error('config: ' + cfgErr.message);
@@ -272,13 +268,13 @@ export async function queueDiscordMessage(payload) {
   if (error) console.error('[DISCORD QUEUE] Error:', error);
 }
 
-// 🔥 NUEVO: Función central para avisar al Bot de un fichaje
 export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   const db = window.__zenithGetRawDB ? window.__zenithGetRawDB() : null;
   if (!db) return;
   
   const config = db.config?.discord || {};
-  if (!config.channelId) return;
+  const channelId = config.transferChannelId || config.channelId;
+  if (!channelId) return;
 
   let discordId = player.discordId;
   if (!discordId) {
@@ -287,8 +283,6 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   }
 
   const roleId = toTeam?.discordRoleId;
-
-  // 🔥 FIX: Validar que el ID sea estrictamente numérico
   const isValidUserId = discordId && /^\d+$/.test(discordId);
   const isValidRoleId = roleId && /^\d+$/.test(roleId);
 
@@ -296,8 +290,8 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   const teamMention = isValidRoleId ? `${toTeam.name} <@&${roleId}>` : (toTeam?.name || 'Agente Libre');
 
   const embed = {
-    title: config.title || 'TRASPASO OFICIAL',
-    color: parseInt((config.color || '#6FA8FF').replace('#', ''), 16),
+    title: config.transferTitle || config.title || 'TRASPASO OFICIAL',
+    color: parseInt((config.transferColor || config.color || '#6FA8FF').replace('#', ''), 16),
     fields: [
       { name: 'Jugador', value: playerMention, inline: false },
       { name: 'Origen', value: fromTeam?.name || 'Agente Libre', inline: true },
@@ -307,8 +301,31 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
     timestamp: new Date().toISOString()
   };
 
-  if (config.image) embed.image = { url: config.image };
-  await queueDiscordMessage({ channelId: config.channelId, embed });
+  const img = config.transferImage || config.image;
+  if (img) embed.image = { url: img };
+
+  await queueDiscordMessage({ channelId, embed });
+}
+
+// 🔥 NUEVA FUNCIÓN: Enviar noticias
+export async function notifyDiscordNews(title, body, bannerBase64) {
+  const db = window.__zenithGetRawDB ? window.__zenithGetRawDB() : null;
+  if (!db) return;
+
+  const config = db.config?.discord || {};
+  const channelId = config.newsChannelId;
+  if (!channelId) return;
+
+  const embed = {
+    title: title || config.newsTitle || 'NOTICIA OFICIAL',
+    color: parseInt((config.newsColor || '#E6C476').replace('#', ''), 16),
+    description: body,
+    timestamp: new Date().toISOString()
+  };
+
+  if (bannerBase64) embed.image = { url: bannerBase64 };
+
+  await queueDiscordMessage({ channelId, embed });
 }
 
 export function subscribeRealtime(onChange) {
