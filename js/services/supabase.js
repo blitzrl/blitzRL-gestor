@@ -45,12 +45,8 @@ export async function downloadAll() {
   const configData = config?.data?.data || {};
 
   return {
-    seasons: (seasons.data || []).map(r => ({
-      id: r.id, name: r.name, year: r.year, active: r.active
-    })),
-    divisions: (divisions.data || []).map(r => ({
-      id: r.id, seasonId: r.season_id, name: r.name, tier: r.tier, visible: r.visible, config: r.data?.config || {}
-    })),
+    seasons: (seasons.data || []).map(r => ({ id: r.id, name: r.name, year: r.year, active: r.active })),
+    divisions: (divisions.data || []).map(r => ({ id: r.id, seasonId: r.season_id, name: r.name, tier: r.tier, visible: r.visible, config: r.data?.config || {} })),
     teams: (teams.data || []).map(r => ({
       id: r.id, divisionId: r.division_id, seasonId: r.season_id, name: r.name,
       tag: r.data?.tag || '', logo: r.data?.logo || '', coach: r.data?.coach || '', 
@@ -291,8 +287,13 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   }
 
   const roleId = toTeam?.discordRoleId;
-  const playerMention = discordId ? `${player.name} <@${discordId}>` : player.name;
-  const teamMention = roleId ? `${toTeam.name} <@&${roleId}>` : (toTeam?.name || 'Agente Libre');
+
+  // 🔥 FIX: Validar que el ID sea estrictamente numérico
+  const isValidUserId = discordId && /^\d+$/.test(discordId);
+  const isValidRoleId = roleId && /^\d+$/.test(roleId);
+
+  const playerMention = isValidUserId ? `${player.name} <@${discordId}>` : player.name;
+  const teamMention = isValidRoleId ? `${toTeam.name} <@&${roleId}>` : (toTeam?.name || 'Agente Libre');
 
   const embed = {
     title: config.title || 'TRASPASO OFICIAL',
