@@ -3,6 +3,7 @@ import { uid } from '../data/database.js';
 import { openModal, toast, closeTopModal } from '../services/ui.js';
 import { logChange } from '../services/history.js';
 import { renderBlocksHTML } from './dashboard.js';
+import { notifyDiscordNews } from '../services/supabase.js'; // 🔥 IMPORTADO
 
 // ============================================================
 // UTILIDADES
@@ -34,9 +35,7 @@ function compressImage(file, maxW, maxH){
   });
 }
 
-function isViewMode(){
-  return !!getDB().viewSeasonId;
-}
+function isViewMode(){ return !!getDB().viewSeasonId; }
 
 const KNOWN_CATEGORIES = ['GENERAL','COMPETICIÓN','STATS','TRANSFERENCIAS'];
 
@@ -48,6 +47,34 @@ const BLOCK_TYPES = [
   { id: 'player-card',  label: 'Card de jugador',  icon: '👤' },
   { id: 'divider',      label: 'Divisor',          icon: '➖' }
 ];
+
+// 🔥 NUEVA FUNCIÓN: Preguntar dónde publicar
+function askPublishTarget(callback) {
+  openModal({
+    id: 'publish-target-modal',
+    title: '¿DÓNDE PUBLICAR?',
+    body: `
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;text-align:center;">
+        Selecciona los destinos para esta noticia.
+      </p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn" data-target="web" style="padding:14px; justify-content:center; font-size:14px;">🌐 SOLO PÁGINA WEB</button>
+        <button class="btn" data-target="discord" style="padding:14px; justify-content:center; font-size:14px; border-color:#5865F2; color:#5865F2;">🎮 SOLO DISCORD</button>
+        <button class="btn btn-primary" data-target="both" style="padding:14px; justify-content:center; font-size:14px;">🚀 AMBOS (WEB + DISCORD)</button>
+      </div>
+    `,
+    footer: `<button class="btn btn-ghost" data-close>CANCELAR</button>`,
+    onMount: root => {
+      root.querySelectorAll('[data-target]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.dataset.target;
+          closeTopModal();
+          callback(target);
+        });
+      });
+    }
+  });
+}
 
 // ============================================================
 // VISTA PRINCIPAL
@@ -229,28 +256,38 @@ function openNewsForm(){
       root.querySelector('#saveNews').addEventListener('click', ()=>{
         const title = root.querySelector('#nTitle').value.trim();
         if(!title) return toast('Falta el título','error');
-        const id = uid('news');
-        try {
-          mutate(d=>d.news.push({
-            id, title,
-            body: root.querySelector('#nBody').value,
-            category: root.querySelector('#nCat').value,
-            featured: root.querySelector('#nFeat').checked,
-            banner: bannerData,
-            date: root.querySelector('#nDate').value || new Date().toISOString().slice(0,10),
-            published: true,
-            blocks: [],
-            pinned: false,
-            goldenFrame: false,
-            customCategory: ''
-          }));
-          logChange('create','news', id, `Noticia "${title}" publicada`);
-          toast('Noticia publicada','success');
-          closeTopModal();
-          window.dispatchEvent(new HashChangeEvent('hashchange'));
-        } catch(e){
-          toast('Error: ' + e.message, 'error');
-        }
+        
+        // 🔥 Preguntar dónde publicar
+        askPublishTarget((target) => {
+          const body = root.querySelector('#nBody').value;
+          const category = root.querySelector('#nCat').value;
+          const date = root.querySelector('#nDate').value || new Date().toISOString().slice(0,10);
+          
+          try {
+            // 1. Guardar en Web (si aplica)
+            if (target === 'web' || target === 'both') {
+              const id = uid('news');
+              mutate(d=>d.news.push({
+                id, title, body, category,
+                featured: root.querySelector('#nFeat').checked,
+                banner: bannerData, date, published: true,
+                blocks: [], pinned: false, goldenFrame: false, customCategory: ''
+              }));
+              logChange('create','news', id, `Noticia "${title}" publicada`);
+            }
+
+            // 2. Mandar a Discord (si aplica)
+            if (target === 'discord' || target === 'both') {
+              notifyDiscordNews(title, body, bannerData);
+            }
+
+            toast(`✅ Noticia publicada en ${target === 'both' ? 'Web y Discord' : target === 'web' ? 'Web' : 'Discord'}`, 'success');
+            closeTopModal();
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+          } catch(e){
+            toast('Error: ' + e.message, 'error');
+          }
+        });
       });
     }
   });
@@ -686,57 +723,55 @@ export function openAdvancedNewsEditor(newsId = null, prefillData = null){
 
         if(!state.title) return toast('Falta el título','error');
 
-        const finalCategory = state.category === '__custom'
-          ? (state.customCategory.trim() || 'GENERAL')
-          : state.category;
+        // 🔥 Preguntar dónde publicar
+        askPublishTarget((target) => {
+          const finalCategory = state.category === '__custom'
+            ? (state.customCategory.trim() || 'GENERAL')
+            : state.category;
 
-        try {
-          if(existing){
-            mutate(d => {
-              const n = d.news.find(x => x.id === existing.id);
-              if(!n) throw new Error('Noticia no encontrada');
-              Object.assign(n, {
-                title: state.title,
-                category: finalCategory,
-                customCategory: state.category === '__custom' ? state.customCategory.trim() : '',
-                banner: state.banner,
-                date: state.date,
-                goldenFrame: state.goldenFrame,
-                pinned: state.pinned,
-                featured: state.featured,
-                blocks: state.blocks,
-                body: ''
-              });
-            });
-            logChange('edit','news', existing.id, `Noticia "${state.title}" editada`);
-            toast('Noticia guardada','success');
-          } else {
-            const id = uid('news');
-            mutate(d => {
-              d.news.push({
-                id,
-                title: state.title,
-                body: '',
-                category: finalCategory,
-                customCategory: state.category === '__custom' ? state.customCategory.trim() : '',
-                featured: state.featured,
-                banner: state.banner,
-                date: state.date,
-                published: true,
-                blocks: state.blocks,
-                pinned: state.pinned,
-                goldenFrame: state.goldenFrame
-              });
-            });
-            logChange('create','news', id, `Noticia avanzada "${state.title}" publicada`);
-            toast('Noticia publicada','success');
+          try {
+            // 1. Guardar en Web
+            if (target === 'web' || target === 'both') {
+              if(existing){
+                mutate(d => {
+                  const n = d.news.find(x => x.id === existing.id);
+                  if(!n) throw new Error('Noticia no encontrada');
+                  Object.assign(n, {
+                    title: state.title, category: finalCategory, customCategory: state.category === '__custom' ? state.customCategory.trim() : '',
+                    banner: state.banner, date: state.date, goldenFrame: state.goldenFrame, pinned: state.pinned,
+                    featured: state.featured, blocks: state.blocks, body: ''
+                  });
+                });
+                logChange('edit','news', existing.id, `Noticia "${state.title}" editada`);
+              } else {
+                const id = uid('news');
+                mutate(d => {
+                  d.news.push({
+                    id, title: state.title, body: '', category: finalCategory, customCategory: state.category === '__custom' ? state.customCategory.trim() : '',
+                    featured: state.featured, banner: state.banner, date: state.date, published: true,
+                    blocks: state.blocks, pinned: state.pinned, goldenFrame: state.goldenFrame
+                  });
+                });
+                logChange('create','news', id, `Noticia avanzada "${state.title}" publicada`);
+              }
+            }
+
+            // 2. Mandar a Discord
+            if (target === 'discord' || target === 'both') {
+              // Extraer el texto plano de los bloques para el embed
+              const textBlocks = state.blocks.filter(b => b.type === 'text' || b.type === 'title');
+              const bodyText = textBlocks.map(b => b.content).join('\n\n');
+              notifyDiscordNews(state.title, bodyText, state.banner);
+            }
+
+            toast(`✅ Noticia publicada en ${target === 'both' ? 'Web y Discord' : target === 'web' ? 'Web' : 'Discord'}`, 'success');
+            closeTopModal();
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+          } catch(e){
+            console.error(e);
+            toast('Error: ' + e.message, 'error');
           }
-          closeTopModal();
-          window.dispatchEvent(new HashChangeEvent('hashchange'));
-        } catch(e){
-          console.error(e);
-          toast('Error: ' + e.message, 'error');
-        }
+        });
       });
     }
   });
