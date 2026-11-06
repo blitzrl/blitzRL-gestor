@@ -307,7 +307,6 @@ export async function notifyDiscordTransfer(player, fromTeam, toTeam, price) {
   await queueDiscordMessage({ channelId, embed });
 }
 
-// 🔥 NUEVA FUNCIÓN: Enviar noticias
 export async function notifyDiscordNews(title, body, bannerBase64) {
   const db = window.__zenithGetRawDB ? window.__zenithGetRawDB() : null;
   if (!db) return;
@@ -316,10 +315,31 @@ export async function notifyDiscordNews(title, body, bannerBase64) {
   const channelId = config.newsChannelId;
   if (!channelId) return;
 
+  // 🔥 FIX MAESTRO: Convertir las @menciones del texto a los IDs de los roles de tu DB
+  let finalBody = body;
+  if (finalBody && db.teams) {
+    // Buscamos todas las menciones con @
+    const mentionRegex = /@([a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ\s]+)/g;
+    const matches = [...finalBody.matchAll(mentionRegex)];
+    
+    for (const match of matches) {
+      const fullMatch = match[0];
+      const nameOnly = match[1].trim();
+      
+      // Buscar si el nombre coincide con algún equipo en la base de datos
+      const team = db.teams.find(t => t.name.toLowerCase() === nameOnly.toLowerCase());
+      
+      if (team && team.discordRoleId) {
+        // Si el equipo tiene un Rol de Discord asignado, lo cambiamos por el formato correcto
+        finalBody = finalBody.replace(fullMatch, `<@&${team.discordRoleId}>`);
+      }
+    }
+  }
+
   const embed = {
     title: title || config.newsTitle || 'NOTICIA OFICIAL',
     color: parseInt((config.newsColor || '#E6C476').replace('#', ''), 16),
-    description: body,
+    description: finalBody, // Usamos el texto modificado
     timestamp: new Date().toISOString()
   };
 
